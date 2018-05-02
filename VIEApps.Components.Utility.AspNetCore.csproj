@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>netcoreapp2.0</TargetFramework>
+		<RootNamespace>net.vieapps.Components.Utility</RootNamespace>
+		<AssemblyName>VIEApps.Components.Utility.AspNetCore</AssemblyName>
+		<AssemblyTitle>VIEApps NGX Utility</AssemblyTitle>
+		<AssemblyVersion>10.1.19.1805</AssemblyVersion>
+		<FileVersion>10.1.19.1805</FileVersion>
+		<InformationalVersion>v10.1.netstandard-2+rev:2018.05.01</InformationalVersion>
+		<Product>VIEApps NGX</Product>
+		<Company>VIEApps.net</Company>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+		<PackageId>VIEApps.Components.Utility.AspNetCore</PackageId>
+		<Version>10.1.19.1805</Version>
+		<SignAssembly>false</SignAssembly>
+		<DelaySign>false</DelaySign>
+		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
+		<Title>VIEApps NGX Utility for ASP.NET Core</Title>
+		<Description>The general purpose library for developing apps with ASP.NET Core 2.0</Description>
+		<Authors>VIEApps.net</Authors>
+		<Copyright>© 2018 VIEApps.net</Copyright>
+		<PackageTags>utility;aspnetcore;vieapps;vieapps.components</PackageTags>
+		<PackageReleaseNotes>Initialize</PackageReleaseNotes>
+		<PackageProjectUrl>https://github.com/vieapps/Components.Utility.AspNetCore</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/vieapps/Components.Utility.AspNetCore</RepositoryUrl>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+		<WarningLevel>3</WarningLevel>
+		<DocumentationFile>bin\Debug\netcoreapp2.0\VIEApps.Components.Utility.AspNetCore.xml</DocumentationFile>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<WarningLevel>3</WarningLevel>
+		<DocumentationFile>bin\Release\netcoreapp2.0\VIEApps.Components.Utility.AspNetCore.xml</DocumentationFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Remove=".DS_Store" />
+		<None Remove=".gitattributes" />
+		<None Remove=".gitignore" />
+		<None Remove="LICENSE" />
+		<None Remove="README.md" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.Http" Version="2.0.2" />
+		<PackageReference Include="VIEApps.Components.Caching" Version="10.1.19.1805" />
+		<PackageReference Include="VIEApps.Components.Security" Version="10.1.19.1805" />
+		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.1.19.1805" />
+	</ItemGroup>
+
+</Project>
