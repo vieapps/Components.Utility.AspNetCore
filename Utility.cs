@@ -169,7 +169,7 @@ namespace net.vieapps.Components.Utility
 		}
 		#endregion
 
-		#region Flush & End response
+		#region Flush, Clear & End response
 		/// <summary>
 		/// Sends all currently buffered output to the client
 		/// </summary>
@@ -190,6 +190,16 @@ namespace net.vieapps.Components.Utility
 			{
 				await context.Response.Body.FlushAsync(cts.Token).ConfigureAwait(false);
 			}
+		}
+
+		/// <summary>
+		/// Clears the response stream
+		/// </summary>
+		/// <param name="context"></param>
+		public static void Clear(this HttpContext context)
+		{
+			context.Response.Headers.Clear();
+			context.Response.Body.SetLength(0);
 		}
 
 		/// <summary>
@@ -435,11 +445,9 @@ namespace net.vieapps.Components.Utility
 				await context.WriteAsync(stream, contentType, eTag, lastModified, contentDisposition, 0, cancellationToken).ConfigureAwait(false);
 			}
 		}
-		#endregion
 
-		#region Write a file to the response body
 		/// <summary>
-		/// Writes the content of a file to the response body
+		/// Writes the content of a file (binary) to the response body
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="fileInfo">The information of the file</param>
@@ -457,21 +465,6 @@ namespace net.vieapps.Components.Utility
 			{
 				await context.WriteAsync(stream, contentType, eTag, fileInfo.LastWriteTime.ToHttpString(), contentDisposition, 0, cancellationToken).ConfigureAwait(false);
 			}
-		}
-
-		/// <summary>
-		/// Writes the content of the file directly to output stream
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="filePath">The path to file</param>
-		/// <param name="contentType">The MIME type</param>
-		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
-		/// <param name="eTag">The entity tag</param>
-		/// <param name="cancellationToken">The cancellation token</param>
-		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, string filePath, string contentType, string eTag = null, string contentDisposition = null, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			return context.WriteAsync(new FileInfo(filePath), contentType, eTag, contentDisposition, cancellationToken);
 		}
 		#endregion
 
@@ -779,6 +772,7 @@ namespace net.vieapps.Components.Utility
 		public static void ShowHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, string stack = null, bool showStack = true)
 		{
 			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
+			context.Clear();
 			context.Write(context.GetHttpErrorHtml(statusCode, message, type, correlationID, stack, showStack), "text/html", statusCode, correlationID);
 			if (message.IsContains("potentially dangerous"))
 				context.Response.End();
@@ -826,6 +820,7 @@ namespace net.vieapps.Components.Utility
 		public static async Task ShowHttpErrorAsync(this HttpContext context, int statusCode, string message, string type, string correlationID = null, string stack = null, bool showStack = true, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
+			context.Clear();
 			await context.WriteAsync(context.GetHttpErrorHtml(statusCode, message, type, correlationID, stack, showStack), "text/html", statusCode, correlationID, cancellationToken).ConfigureAwait(false);
 			if (message.IsContains("potentially dangerous"))
 				context.Response.End();
@@ -893,6 +888,7 @@ namespace net.vieapps.Components.Utility
 		public static void WriteHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, JObject stack = null, bool showStack = true)
 		{
 			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
+			context.Clear();
 			context.Write(context.GetHttpErrorJson(statusCode, message, type, correlationID, stack, showStack).ToString(Newtonsoft.Json.Formatting.Indented), "application/json", statusCode, correlationID);
 		}
 
@@ -947,6 +943,7 @@ namespace net.vieapps.Components.Utility
 		public static async Task WriteHttpErrorAsync(this HttpContext context, int statusCode, string message, string type, string correlationID = null, JObject stack = null, bool showStack = true, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
+			context.Clear();
 			await context.WriteAsync(context.GetHttpErrorJson(statusCode, message, type, correlationID, stack, showStack).ToString(Newtonsoft.Json.Formatting.Indented), "application/json", statusCode, correlationID, cancellationToken).ConfigureAwait(false);
 		}
 
