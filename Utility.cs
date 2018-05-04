@@ -656,7 +656,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="eTag"></param>
 		/// <param name="lastModified"></param>
 		/// <param name="correlationID"></param>
-		public static void Write(this HttpContext context, JObject json, Newtonsoft.Json.Formatting formatting, string eTag, string lastModified, string correlationID = null)
+		public static void Write(this HttpContext context, JToken json, Newtonsoft.Json.Formatting formatting, string eTag, string lastModified, string correlationID = null)
 		{
 			context.Write(json?.ToString(formatting) ?? "{}", "application/json", (int)HttpStatusCode.OK, eTag, lastModified, correlationID);
 		}
@@ -668,7 +668,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="json"></param>
 		/// <param name="formatting"></param>
 		/// <param name="correlationID"></param>
-		public static void Write(this HttpContext context, JObject json, Newtonsoft.Json.Formatting formatting = Newtonsoft.Json.Formatting.None, string correlationID = null)
+		public static void Write(this HttpContext context, JToken json, Newtonsoft.Json.Formatting formatting = Newtonsoft.Json.Formatting.None, string correlationID = null)
 		{
 			context.Write(json, formatting, null, null, correlationID);
 		}
@@ -682,7 +682,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="eTag"></param>
 		/// <param name="lastModified"></param>
 		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, JObject json, Newtonsoft.Json.Formatting formatting, string eTag, string lastModified, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static Task WriteAsync(this HttpContext context, JToken json, Newtonsoft.Json.Formatting formatting, string eTag, string lastModified, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			return context.WriteAsync(json?.ToString(formatting) ?? "{}", "application/json", (int)HttpStatusCode.OK, eTag, lastModified, correlationID, cancellationToken);
 		}
@@ -694,7 +694,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="json"></param>
 		/// <param name="formatting"></param>
 		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, JObject json, Newtonsoft.Json.Formatting formatting = Newtonsoft.Json.Formatting.None, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static Task WriteAsync(this HttpContext context, JToken json, Newtonsoft.Json.Formatting formatting = Newtonsoft.Json.Formatting.None, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			return context.WriteAsync(json, formatting, null, null, correlationID, cancellationToken);
 		}
@@ -706,7 +706,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="json"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, JObject json, CancellationToken cancellationToken)
+		public static Task WriteAsync(this HttpContext context, JToken json, CancellationToken cancellationToken)
 		{
 			return context.WriteAsync(json, Newtonsoft.Json.Formatting.None, null, cancellationToken);
 		}
