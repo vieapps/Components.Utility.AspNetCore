@@ -14,6 +14,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.WebUtilities;
 
+using Microsoft.Extensions.Logging;
+
 using Newtonsoft.Json.Linq;
 
 using net.vieapps.Components.WebSockets;
@@ -88,7 +90,7 @@ namespace net.vieapps.Components.Utility
 			// status code
 			context.Response.StatusCode = statusCode;
 
-			// headers
+			// prepare headers
 			var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 			{
 				{ "Server", "VIEApps NGX" },
@@ -104,14 +106,16 @@ namespace net.vieapps.Components.Utility
 			if (!string.IsNullOrWhiteSpace(correlationID))
 				headers.Add("X-Correlation-ID", correlationID);
 
-			headers.ForEach(kvp => context.Response.Headers.Add(kvp.Key, kvp.Value));
-			additionalHeaders?.ForEach(kvp => context.Response.Headers.Add(kvp.Key, kvp.Value));
+			additionalHeaders?.Where(kvp => !headers.ContainsKey(kvp.Key)).ForEach(kvp => headers[kvp.Key] = kvp.Value);
 
 			if (context.Items.ContainsKey("PipelineStopwatch") && context.Items["PipelineStopwatch"] is Stopwatch stopwatch)
 			{
 				stopwatch.Stop();
-				context.Response.Headers.Add("X-Execution-Times", stopwatch.GetElapsedTimes());
+				headers.Add("X-Execution-Times", stopwatch.GetElapsedTimes());
 			}
+
+			// update headers
+			headers.Where(kvp => !context.Response.Headers.ContainsKey(kvp.Key)).ForEach(kvp => context.Response.Headers.Add(kvp.Key, kvp.Value));
 		}
 
 		/// <summary>
@@ -964,7 +968,14 @@ namespace net.vieapps.Components.Utility
 		public static void Add(this ISession session, string key, object value)
 		{
 			if (!string.IsNullOrWhiteSpace(key))
-				session.Set(key, Helper.Serialize(value));
+				try
+				{
+					session.Set(key, Helper.Serialize(value));
+				}
+				catch (Exception ex)
+				{
+					Logger.Log<ISession>(LogLevel.Debug, LogLevel.Warning, $"Cannot add object into session: {ex.Message}", ex);
+				}
 		}
 
 		/// <summary>
@@ -995,6 +1006,19 @@ namespace net.vieapps.Components.Utility
 					? Helper.Deserialize<T>(value)
 					: default(T)
 				: default(T);
+		}
+
+		/// <summary>
+		/// Checks to see the key is existed in ASP.NET Core Session or not
+		/// </summary>
+		/// <param name="session"></param>
+		/// <param name="key"></param>
+		/// <returns></returns>
+		public static bool ContainsKey(this ISession session, string key)
+		{
+			return !string.IsNullOrWhiteSpace(key)
+				? session.Keys.FirstOrDefault(k => k.IsEquals(key)) != null
+				: false;
 		}
 		#endregion
 
