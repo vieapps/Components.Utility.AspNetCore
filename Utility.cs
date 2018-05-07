@@ -12,10 +12,13 @@ using System.Diagnostics;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.AspNetCore.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 using net.vieapps.Components.WebSockets;
@@ -173,7 +176,7 @@ namespace net.vieapps.Components.Utility
 		}
 		#endregion
 
-		#region Flush, Clear & End response
+		#region Flush response
 		/// <summary>
 		/// Sends all currently buffered output to the client
 		/// </summary>
@@ -194,34 +197,6 @@ namespace net.vieapps.Components.Utility
 			{
 				await context.Response.Body.FlushAsync(cts.Token).ConfigureAwait(false);
 			}
-		}
-
-		/// <summary>
-		/// Clears the response stream
-		/// </summary>
-		/// <param name="context"></param>
-		public static void Clear(this HttpContext context)
-		{
-			try
-			{
-				context.Response.Headers.Clear();
-				context.Response.Body = new MemoryStream();
-			}
-			catch { }
-		}
-
-		/// <summary>
-		/// Closes the response stream (means end the response)
-		/// </summary>
-		/// <param name="response"></param>
-		public static void End(this HttpResponse response)
-		{
-			try
-			{
-				response.Body.Flush();
-				response.Body.Dispose();
-			}
-			catch { }
 		}
 		#endregion
 
@@ -595,13 +570,12 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="text"></param>
 		/// <param name="contentType"></param>
-		/// <param name="statusCode"></param>
 		/// <param name="eTag"></param>
 		/// <param name="lastModified"></param>
 		/// <param name="correlationID"></param>
-		public static void Write(this HttpContext context, string text, string contentType, int statusCode, string eTag, string lastModified, string correlationID = null)
+		public static void Write(this HttpContext context, string text, string contentType, string eTag, string lastModified, string correlationID = null)
 		{
-			context.SetResponseHeaders(statusCode, contentType, eTag, lastModified, correlationID);
+			context.SetResponseHeaders((int)HttpStatusCode.OK, contentType, eTag, lastModified, correlationID);
 			context.Write(text.ToBytes());
 		}
 
@@ -611,11 +585,10 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="text"></param>
 		/// <param name="contentType"></param>
-		/// <param name="statusCode"></param>
 		/// <param name="correlationID"></param>
-		public static void Write(this HttpContext context, string text, string contentType, int statusCode, string correlationID = null)
+		public static void Write(this HttpContext context, string text, string contentType, string correlationID = null)
 		{
-			context.Write(text, contentType, statusCode, null, null, correlationID);
+			context.Write(text, contentType, null, null, correlationID);
 		}
 
 		/// <summary>
@@ -624,15 +597,14 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="text"></param>
 		/// <param name="contentType"></param>
-		/// <param name="statusCode"></param>
 		/// <param name="eTag"></param>
 		/// <param name="lastModified"></param>
 		/// <param name="correlationID"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, string text, string contentType, int statusCode, string eTag, string lastModified, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task WriteAsync(this HttpContext context, string text, string contentType, string eTag, string lastModified, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			context.SetResponseHeaders(statusCode, contentType, eTag, lastModified, correlationID);
+			context.SetResponseHeaders((int)HttpStatusCode.OK, contentType, eTag, lastModified, correlationID);
 			await context.WriteAsync(text.ToBytes().ToArraySegment(), cancellationToken).ConfigureAwait(false);
 		}
 
@@ -642,11 +614,10 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="text"></param>
 		/// <param name="contentType"></param>
-		/// <param name="statusCode"></param>
 		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, string text, string contentType = "text/html", int statusCode = 200, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static Task WriteAsync(this HttpContext context, string text, string contentType = "text/html", string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			return context.WriteAsync(text, contentType, statusCode, null, null, correlationID, cancellationToken);
+			return context.WriteAsync(text, contentType, null, null, correlationID, cancellationToken);
 		}
 		#endregion
 
@@ -660,9 +631,9 @@ namespace net.vieapps.Components.Utility
 		/// <param name="eTag"></param>
 		/// <param name="lastModified"></param>
 		/// <param name="correlationID"></param>
-		public static void Write(this HttpContext context, JToken json, Newtonsoft.Json.Formatting formatting, string eTag, string lastModified, string correlationID = null)
+		public static void Write(this HttpContext context, JToken json, Formatting formatting, string eTag, string lastModified, string correlationID = null)
 		{
-			context.Write(json?.ToString(formatting) ?? "{}", "application/json", (int)HttpStatusCode.OK, eTag, lastModified, correlationID);
+			context.Write(json?.ToString(formatting) ?? "{}", "application/json", eTag, lastModified, correlationID);
 		}
 
 		/// <summary>
@@ -672,7 +643,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="json"></param>
 		/// <param name="formatting"></param>
 		/// <param name="correlationID"></param>
-		public static void Write(this HttpContext context, JToken json, Newtonsoft.Json.Formatting formatting = Newtonsoft.Json.Formatting.None, string correlationID = null)
+		public static void Write(this HttpContext context, JToken json, Formatting formatting = Formatting.None, string correlationID = null)
 		{
 			context.Write(json, formatting, null, null, correlationID);
 		}
@@ -686,9 +657,9 @@ namespace net.vieapps.Components.Utility
 		/// <param name="eTag"></param>
 		/// <param name="lastModified"></param>
 		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, JToken json, Newtonsoft.Json.Formatting formatting, string eTag, string lastModified, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting, string eTag, string lastModified, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			return context.WriteAsync(json?.ToString(formatting) ?? "{}", "application/json", (int)HttpStatusCode.OK, eTag, lastModified, correlationID, cancellationToken);
+			return context.WriteAsync(json?.ToString(formatting) ?? "{}", "application/json", eTag, lastModified, correlationID, cancellationToken);
 		}
 
 		/// <summary>
@@ -698,7 +669,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="json"></param>
 		/// <param name="formatting"></param>
 		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, JToken json, Newtonsoft.Json.Formatting formatting = Newtonsoft.Json.Formatting.None, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting = Formatting.None, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			return context.WriteAsync(json, formatting, null, null, correlationID, cancellationToken);
 		}
@@ -712,25 +683,11 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, JToken json, CancellationToken cancellationToken)
 		{
-			return context.WriteAsync(json, Newtonsoft.Json.Formatting.None, null, cancellationToken);
+			return context.WriteAsync(json, Formatting.None, null, cancellationToken);
 		}
 		#endregion
 
-		#region Show HTTP Error as HTML
-		static string GetHttpErrorHtml(this HttpContext context, int statusCode, string message, string type, string correlationID = null, string stack = null, bool showStack = true)
-		{
-			var html = "<!DOCTYPE html>\r\n" +
-				$"<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n" +
-				$"<head><title>Error {statusCode}</title></head>\r\n<body>\r\n" +
-				$"<h1>HTTP {statusCode} - {message.Replace("<", "&lt;").Replace(">", "&gt;")}</h1>\r\n" +
-				$"<hr/>\r\n" +
-				$"<div>Type: {type} {(!string.IsNullOrWhiteSpace(correlationID) ? " - Correlation ID: " + correlationID : "")}</div>\r\n";
-			if (!string.IsNullOrWhiteSpace(stack) && showStack)
-				html += $"<div><br/>Stack:</div>\r\n<blockquote>{stack.Replace("<", "&lt;").Replace(">", "&gt;").Replace("\n", "<br/>").Replace("\r", "").Replace("\t", "")}</blockquote>\r\n";
-			html += "</body>\r\n</html>";
-			return html;
-		}
-
+		#region Show HTTP error as HTML
 		/// <summary>
 		/// Shows HTTP error as HTML
 		/// </summary>
@@ -743,11 +700,24 @@ namespace net.vieapps.Components.Utility
 		/// <param name="showStack"></param>
 		public static void ShowHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, string stack = null, bool showStack = true)
 		{
+			// prepare
 			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
-			context.Clear();
-			context.Write(context.GetHttpErrorHtml(statusCode, message, type, correlationID, stack, showStack), "text/html", statusCode, correlationID);
-			if (message.IsContains("potentially dangerous"))
-				context.Response.End();
+			var html = "<!DOCTYPE html>\r\n" +
+				$"<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n" +
+				$"<head><title>Error {statusCode}</title></head>\r\n<body>\r\n" +
+				$"<h1>HTTP {statusCode} - {message.Replace("<", "&lt;").Replace(">", "&gt;")}</h1>\r\n" +
+				$"<hr/>\r\n" +
+				$"<div>Type: {type} {(!string.IsNullOrWhiteSpace(correlationID) ? " - Correlation ID: " + correlationID : "")}</div>\r\n";
+			if (!string.IsNullOrWhiteSpace(stack) && showStack)
+				html += $"<div><br/>Stack:</div>\r\n<blockquote>{stack.Replace("<", "&lt;").Replace(">", "&gt;").Replace("\n", "<br/>").Replace("\r", "").Replace("\t", "")}</blockquote>\r\n";
+			html += "</body>\r\n</html>";
+
+			// update into context to use at status page middleware
+			context.Items["ErrorType"] = "text/html";
+			context.Items["ErrorDetails"] = html;
+
+			// set status code to raise status page middleware
+			context.Response.StatusCode = statusCode;
 		}
 
 		/// <summary>
@@ -777,9 +747,11 @@ namespace net.vieapps.Components.Utility
 			}
 			context.ShowHttpError(statusCode, message, type, correlationID, stack, showStack);
 		}
+		#endregion
 
+		#region Write HTTP error as JSON
 		/// <summary>
-		/// Shows HTTP error as HTML
+		/// Writes HTTP error as JSON
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="statusCode"></param>
@@ -788,49 +760,10 @@ namespace net.vieapps.Components.Utility
 		/// <param name="correlationID"></param>
 		/// <param name="stack"></param>
 		/// <param name="showStack"></param>
-		/// <param name="cancellationToken"></param>
-		public static async Task ShowHttpErrorAsync(this HttpContext context, int statusCode, string message, string type, string correlationID = null, string stack = null, bool showStack = true, CancellationToken cancellationToken = default(CancellationToken))
+		public static void WriteHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, JObject stack = null, bool showStack = true)
 		{
+			// prepare
 			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
-			context.Clear();
-			await context.WriteAsync(context.GetHttpErrorHtml(statusCode, message, type, correlationID, stack, showStack), "text/html", statusCode, correlationID, cancellationToken).ConfigureAwait(false);
-			if (message.IsContains("potentially dangerous"))
-				context.Response.End();
-		}
-
-		/// <summary>
-		/// Shows HTTP error as HTML
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="statusCode"></param>
-		/// <param name="message"></param>
-		/// <param name="type"></param>
-		/// <param name="correlationID"></param>
-		/// <param name="ex"></param>
-		/// <param name="showStack"></param>
-		/// <param name="cancellationToken"></param>
-		public static Task ShowHttpErrorAsync(this HttpContext context, int statusCode, string message, string type, string correlationID, Exception ex, bool showStack = true, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			var stack = string.Empty;
-			if (ex != null && showStack)
-			{
-				stack = ex.StackTrace;
-				var counter = 1;
-				var inner = ex.InnerException;
-				while (inner != null)
-				{
-					stack += "\r\n" + $" ---- Inner [{counter}] -------------------------------------- " + "\r\n" + inner.StackTrace;
-					inner = inner.InnerException;
-					counter++;
-				}
-			}
-			return context.ShowHttpErrorAsync(statusCode, message, type, correlationID, stack, showStack, cancellationToken);
-		}
-		#endregion
-
-		#region Write HTTP Error as JSON
-		static JObject GetHttpErrorJson(this HttpContext context, int statusCode, string message, string type, string correlationID = null, JObject stack = null, bool showStack = true)
-		{
 			var json = new JObject()
 			{
 				{ "Message", message },
@@ -844,24 +777,12 @@ namespace net.vieapps.Components.Utility
 			if (stack != null && showStack)
 				json["Stack"] = stack;
 
-			return json;
-		}
+			// update into context to use at status page middleware
+			context.Items["ErrorType"] = "application/json";
+			context.Items["ErrorDetails"] = json.ToString(Formatting.Indented);
 
-		/// <summary>
-		/// Writes HTTP error as JSON
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="statusCode"></param>
-		/// <param name="message"></param>
-		/// <param name="type"></param>
-		/// <param name="correlationID"></param>
-		/// <param name="stack"></param>
-		/// <param name="showStack"></param>
-		public static void WriteHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, JObject stack = null, bool showStack = true)
-		{
-			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
-			context.Clear();
-			context.Write(context.GetHttpErrorJson(statusCode, message, type, correlationID, stack, showStack).ToString(Newtonsoft.Json.Formatting.Indented), "application/json", statusCode, correlationID);
+			// set status code to raise status page middleware
+			context.Response.StatusCode = statusCode;
 		}
 
 		/// <summary>
@@ -900,61 +821,61 @@ namespace net.vieapps.Components.Utility
 			}
 			context.WriteHttpError(statusCode, message, type, correlationID, stack, showStack);
 		}
+		#endregion
 
+		#region Show errors of HTTP status codes
 		/// <summary>
-		/// Writes HTTP error as JSON
+		/// Shows the details of an error to HTTP output (status page)
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="statusCode"></param>
-		/// <param name="message"></param>
-		/// <param name="type"></param>
-		/// <param name="correlationID"></param>
-		/// <param name="stack"></param>
-		/// <param name="showStack"></param>
-		/// <param name="cancellationToken"></param>
-		public static async Task WriteHttpErrorAsync(this HttpContext context, int statusCode, string message, string type, string correlationID = null, JObject stack = null, bool showStack = true, CancellationToken cancellationToken = default(CancellationToken))
+		/// <returns></returns>
+		public static async Task ShowHttpErrorAsync(this StatusCodeContext context)
 		{
-			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
-			context.Clear();
-			await context.WriteAsync(context.GetHttpErrorJson(statusCode, message, type, correlationID, stack, showStack).ToString(Newtonsoft.Json.Formatting.Indented), "application/json", statusCode, correlationID, cancellationToken).ConfigureAwait(false);
+			// prepare
+			var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+			{
+				{ "Content-Type", $"{(string)context.HttpContext.Items["ErrorType"] ?? "text/plain"}; charset=utf-8" },
+				{ "Cache-Control", "private, no-store, no-cache" },
+				{ "Expires", "-1" },
+				{ "Pragma", "no-cache" },
+				{ "Server", "VIEApps NGX" }
+			};
+			var body = ((string)context.HttpContext.Items["ErrorDetails"] ?? $"Error {context.HttpContext.Response.StatusCode}").ToBytes();
+
+			var encoding = string.Join(", ", context.HttpContext.Request.Headers["Accept-Encoding"]);
+			if (encoding == "*" || encoding.IsContains("deflate"))
+				encoding = "deflate";
+			else if (encoding.IsContains("gzip"))
+				encoding = "gzip";
+			else
+				encoding = null;
+
+			if (!string.IsNullOrWhiteSpace(encoding))
+			{
+				headers["Content-Encoding"] = encoding;
+				body = body.Compress(encoding);
+			}
+
+			headers["Content-Length"] = $"{body.Length}";
+
+			if (context.HttpContext.Items.ContainsKey("PipelineStopwatch") && context.HttpContext.Items["PipelineStopwatch"] is Stopwatch stopwatch)
+			{
+				stopwatch.Stop();
+				headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
+			}
+
+			// write details to output
+			headers.ForEach(kvp => context.HttpContext.Response.Headers[kvp.Key] = kvp.Value);
+			await context.HttpContext.WriteAsync(body).ConfigureAwait(false);
 		}
 
 		/// <summary>
-		/// Writes HTTP error as JSON
+		/// Adds a StatusCodePages middleware with the specified handler that checks for responses with status codes between 400 and 599 that do not have a body
 		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="statusCode"></param>
-		/// <param name="message"></param>
-		/// <param name="type"></param>
-		/// <param name="correlationID"></param>
-		/// <param name="ex"></param>
-		/// <param name="showStack"></param>
-		/// <param name="cancellationToken"></param>
-		public static Task WriteHttpErrorAsync(this HttpContext context, int statusCode, string message, string type, string correlationID, Exception ex, bool showStack = true, CancellationToken cancellationToken = default(CancellationToken))
+		/// <param name="app"></param>
+		public static void UseErrorCodePages(this IApplicationBuilder app)
 		{
-			JObject stack = null;
-			if (ex != null && showStack)
-			{
-				stack = new JObject()
-				{
-					{ "Stack", ex.StackTrace }
-				};
-				var inners = new JArray();
-				var counter = 1;
-				var inner = ex.InnerException;
-				while (inner != null)
-				{
-					inners.Add(new JObject()
-					{
-						{ $"Inner_{counter}", inner.StackTrace }
-					});
-					inner = inner.InnerException;
-					counter++;
-				}
-				if (inners.Count > 0)
-					stack["Inners"] = inners;
-			}
-			return context.WriteHttpErrorAsync(statusCode, message, type, correlationID, stack, showStack, cancellationToken);
+			app.UseStatusCodePages(context => context.ShowHttpErrorAsync());
 		}
 		#endregion
 
