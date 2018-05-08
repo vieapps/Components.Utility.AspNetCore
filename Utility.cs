@@ -157,10 +157,7 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
-		public static Uri GetRequestUri(this HttpContext context)
-		{
-			return new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}{context.Request.PathBase}{context.Request.QueryString}");
-		}
+		public static Uri GetRequestUri(this HttpContext context) => new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}{context.Request.PathBase}{context.Request.QueryString}");
 
 		/// <summary>
 		/// Parses the query of an uri
@@ -181,10 +178,7 @@ namespace net.vieapps.Components.Utility
 		/// Sends all currently buffered output to the client
 		/// </summary>
 		/// <param name="context"></param>
-		public static void Flush(this HttpContext context)
-		{
-			context.Response.Body.Flush();
-		}
+		public static void Flush(this HttpContext context) => context.Response.Body.Flush();
 
 		/// <summary>
 		/// Asynchronously sends all currently buffered output to the client
@@ -208,9 +202,15 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static byte[] Read(this HttpContext context)
 		{
-			var buffer = new byte[context.GetBodyRequestMaxLength()];
+			var data = new byte[0];
+			var buffer = new byte[TextFileReader.BufferSize];
 			var read = context.Request.Body.Read(buffer, 0, buffer.Length);
-			return buffer.Take(0, read);
+			while (read > 0)
+			{
+				data = data.Concat(buffer.Take(0, read));
+				read = context.Request.Body.Read(buffer, 0, buffer.Length);
+			}
+			return data;
 		}
 
 		/// <summary>
@@ -220,9 +220,15 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static async Task<byte[]> ReadAsync(this HttpContext context, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			var buffer = new byte[context.GetBodyRequestMaxLength()];
+			var data = new byte[0];
+			var buffer = new byte[TextFileReader.BufferSize];
 			var read = await context.Request.Body.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
-			return buffer.Take(0, read);
+			while (read > 0)
+			{
+				data = data.Concat(buffer.Take(0, read));
+				read = await context.Request.Body.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
+			}
+			return data;
 		}
 
 		/// <summary>
@@ -260,10 +266,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="buffer"></param>
 		/// <param name="offset"></param>
 		/// <param name="count"></param>
-		public static void Write(this HttpContext context, byte[] buffer, int offset = 0, int count = 0)
-		{
-			context.Response.Body.Write(buffer, offset > -1 ? offset : 0, count > 0 ? count : buffer.Length);
-		}
+		public static void Write(this HttpContext context, byte[] buffer, int offset = 0, int count = 0) => context.Response.Body.Write(buffer, offset > -1 ? offset : 0, count > 0 ? count : buffer.Length);
 
 		/// <summary>
 		/// Writes binary data to the response body
@@ -271,10 +274,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="buffer"></param>
 		/// <returns></returns>
-		public static void Write(this HttpContext context, ArraySegment<byte> buffer)
-		{
-			context.Response.Body.Write(buffer.Array, buffer.Offset, buffer.Count);
-		}
+		public static void Write(this HttpContext context, ArraySegment<byte> buffer) => context.Response.Body.Write(buffer.Array, buffer.Offset, buffer.Count);
 
 		/// <summary>
 		/// Writes binary data to the response body
@@ -534,10 +534,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="text"></param>
 		/// <param name="encoding"></param>
-		public static void Write(this HttpContext context, string text, Encoding encoding = null)
-		{
-			context.Write(text.ToBytes(encoding));
-		}
+		public static void Write(this HttpContext context, string text, Encoding encoding = null) => context.Write(text.ToBytes(encoding));
 
 		/// <summary>
 		/// Writes the given text to the response body
@@ -547,10 +544,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="encoding"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, string text, Encoding encoding = null, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			return context.WriteAsync(text.ToBytes(encoding).ToArraySegment(), cancellationToken);
-		}
+		public static Task WriteAsync(this HttpContext context, string text, Encoding encoding = null, CancellationToken cancellationToken = default(CancellationToken)) => context.WriteAsync(text.ToBytes(encoding).ToArraySegment(), cancellationToken);
 
 		/// <summary>
 		/// Writes the given text to the response body
@@ -559,10 +553,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="text"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, string text, CancellationToken cancellationToken)
-		{
-			return context.WriteAsync(text.ToBytes().ToArraySegment(), cancellationToken);
-		}
+		public static Task WriteAsync(this HttpContext context, string text, CancellationToken cancellationToken) => context.WriteAsync(text.ToBytes().ToArraySegment(), cancellationToken);
 
 		/// <summary>
 		/// Writes the given text to the response body
@@ -586,10 +577,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="text"></param>
 		/// <param name="contentType"></param>
 		/// <param name="correlationID"></param>
-		public static void Write(this HttpContext context, string text, string contentType, string correlationID = null)
-		{
-			context.Write(text, contentType, null, null, correlationID);
-		}
+		public static void Write(this HttpContext context, string text, string contentType, string correlationID = null) => context.Write(text, contentType, null, null, correlationID);
 
 		/// <summary>
 		/// Writes the given text to the response body
@@ -615,10 +603,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="text"></param>
 		/// <param name="contentType"></param>
 		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, string text, string contentType = "text/html", string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			return context.WriteAsync(text, contentType, null, null, correlationID, cancellationToken);
-		}
+		public static Task WriteAsync(this HttpContext context, string text, string contentType = "text/html", string correlationID = null, CancellationToken cancellationToken = default(CancellationToken)) => context.WriteAsync(text, contentType, null, null, correlationID, cancellationToken);
 		#endregion
 
 		#region Write JSON data to the response body
@@ -631,10 +616,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="eTag"></param>
 		/// <param name="lastModified"></param>
 		/// <param name="correlationID"></param>
-		public static void Write(this HttpContext context, JToken json, Formatting formatting, string eTag, string lastModified, string correlationID = null)
-		{
-			context.Write(json?.ToString(formatting) ?? "{}", "application/json", eTag, lastModified, correlationID);
-		}
+		public static void Write(this HttpContext context, JToken json, Formatting formatting, string eTag, string lastModified, string correlationID = null) => context.Write(json?.ToString(formatting) ?? "{}", "application/json", eTag, lastModified, correlationID);
 
 		/// <summary>
 		/// Writes the JSON to the response body
@@ -643,10 +625,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="json"></param>
 		/// <param name="formatting"></param>
 		/// <param name="correlationID"></param>
-		public static void Write(this HttpContext context, JToken json, Formatting formatting = Formatting.None, string correlationID = null)
-		{
-			context.Write(json, formatting, null, null, correlationID);
-		}
+		public static void Write(this HttpContext context, JToken json, Formatting formatting = Formatting.None, string correlationID = null) => context.Write(json, formatting, null, null, correlationID);
 
 		/// <summary>
 		/// Writes the JSON to the response body
@@ -657,10 +636,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="eTag"></param>
 		/// <param name="lastModified"></param>
 		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting, string eTag, string lastModified, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			return context.WriteAsync(json?.ToString(formatting) ?? "{}", "application/json", eTag, lastModified, correlationID, cancellationToken);
-		}
+		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting, string eTag, string lastModified, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken)) => context.WriteAsync(json?.ToString(formatting) ?? "{}", "application/json", eTag, lastModified, correlationID, cancellationToken);
 
 		/// <summary>
 		/// Writes the JSON to the response body
@@ -669,10 +645,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="json"></param>
 		/// <param name="formatting"></param>
 		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting = Formatting.None, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			return context.WriteAsync(json, formatting, null, null, correlationID, cancellationToken);
-		}
+		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting = Formatting.None, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken)) => context.WriteAsync(json, formatting, null, null, correlationID, cancellationToken);
 
 		/// <summary>
 		/// Writes the JSON to the response body
@@ -681,10 +654,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="json"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, JToken json, CancellationToken cancellationToken)
-		{
-			return context.WriteAsync(json, Formatting.None, null, cancellationToken);
-		}
+		public static Task WriteAsync(this HttpContext context, JToken json, CancellationToken cancellationToken) => context.WriteAsync(json, Formatting.None, null, cancellationToken);
 		#endregion
 
 		#region Show HTTP error as HTML
@@ -873,10 +843,7 @@ namespace net.vieapps.Components.Utility
 		/// Adds a StatusCodePages middleware with the specified handler that checks for responses with status codes between 400 and 599 that do not have a body
 		/// </summary>
 		/// <param name="app"></param>
-		public static void UseErrorCodePages(this IApplicationBuilder app)
-		{
-			app.UseStatusCodePages(context => context.ShowHttpErrorAsync());
-		}
+		public static void UseErrorCodePages(this IApplicationBuilder app) => app.UseStatusCodePages(context => context.ShowHttpErrorAsync());
 		#endregion
 
 		#region Add & Get session's item
@@ -905,14 +872,11 @@ namespace net.vieapps.Components.Utility
 		/// <param name="session"></param>
 		/// <param name="key"></param>
 		/// <returns></returns>
-		public static object Get(this ISession session, string key)
-		{
-			return !string.IsNullOrWhiteSpace(key)
+		public static object Get(this ISession session, string key) => !string.IsNullOrWhiteSpace(key)
 				? session.TryGetValue(key, out byte[] value)
 					? Helper.Deserialize(value)
 					: null
 				: null;
-		}
 
 		/// <summary>
 		/// Gets an item from ASP.NET Core Session
@@ -920,14 +884,11 @@ namespace net.vieapps.Components.Utility
 		/// <param name="session"></param>
 		/// <param name="key"></param>
 		/// <returns></returns>
-		public static T Get<T>(this ISession session, string key)
-		{
-			return !string.IsNullOrWhiteSpace(key)
+		public static T Get<T>(this ISession session, string key) => !string.IsNullOrWhiteSpace(key)
 				? session.TryGetValue(key, out byte[] value)
 					? Helper.Deserialize<T>(value)
 					: default(T)
 				: default(T);
-		}
 
 		/// <summary>
 		/// Checks to see the key is existed in ASP.NET Core Session or not
@@ -935,12 +896,9 @@ namespace net.vieapps.Components.Utility
 		/// <param name="session"></param>
 		/// <param name="key"></param>
 		/// <returns></returns>
-		public static bool ContainsKey(this ISession session, string key)
-		{
-			return !string.IsNullOrWhiteSpace(key)
+		public static bool ContainsKey(this ISession session, string key) => !string.IsNullOrWhiteSpace(key)
 				? session.Keys.FirstOrDefault(k => k.IsEquals(key)) != null
 				: false;
-		}
 		#endregion
 
 		#region Wrap a WebSocket connection of ASP.NET Core into WebSocket component
@@ -971,10 +929,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context">The working context of ASP.NET Core</param>
 		/// <param name="whenIsNotWebSocketRequest">Action to run when the request is not WebSocket request</param>
 		/// <returns></returns>
-		public static Task WrapWebSocketAsync(this WebSocket websocket, HttpContext context, Action<HttpContext> whenIsNotWebSocketRequest = null)
-		{
-			return websocket.WrapAsync(context, whenIsNotWebSocketRequest);
-		}
+		public static Task WrapWebSocketAsync(this WebSocket websocket, HttpContext context, Action<HttpContext> whenIsNotWebSocketRequest = null) => websocket.WrapAsync(context, whenIsNotWebSocketRequest);
 		#endregion
 
 	}
