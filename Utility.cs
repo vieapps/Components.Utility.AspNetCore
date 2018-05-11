@@ -23,7 +23,6 @@ using Newtonsoft.Json.Linq;
 
 using net.vieapps.Components.WebSockets;
 using net.vieapps.Components.Security;
-using net.vieapps.Components.Caching;
 #endregion
 
 namespace net.vieapps.Components.Utility
@@ -83,41 +82,55 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="statusCode"></param>
-		/// <param name="contentType"></param>
-		/// <param name="eTag"></param>
-		/// <param name="lastModified"></param>
-		/// <param name="correlationID"></param>
-		/// <param name="additionalHeaders"></param>
-		public static void SetResponseHeaders(this HttpContext context, int statusCode, string contentType, string eTag = null, string lastModified = null, string correlationID = null, Dictionary<string, string> additionalHeaders = null)
+		/// <param name="headers"></param>
+		public static void SetResponseHeaders(this HttpContext context, int statusCode, Dictionary<string, string> headers = null)
 		{
-			// status code
 			context.Response.StatusCode = statusCode;
-
-			// prepare headers
-			var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+			headers?.ForEach(kvp => context.Response.Headers[kvp.Key] = kvp.Value);
+			context.Response.Headers["Server"] = "VIEApps NGX";
+			if (context.Items.ContainsKey("PipelineStopwatch") && context.Items["PipelineStopwatch"] is Stopwatch stopwatch)
 			{
-				{ "Server", "VIEApps NGX" },
-				{ "Content-Type", $"{contentType}; charset=utf-8" }
-			};
+				stopwatch.Stop();
+				context.Response.Headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
+			}
+		}
+
+		/// <summary>
+		/// Sets the approriate headers of response
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="statusCode">The HTTP status code</param>
+		/// <param name="contentType">The MIME content type</param>
+		/// <param name="eTag">The entity tag</param>
+		/// <param name="lastModified">The number that presents Unix timestamp</param>
+		/// <param name="correlationID">The correlation idenntity</param>
+		/// <param name="headers">The additional headers</param>
+		public static void SetResponseHeaders(this HttpContext context, int statusCode, string contentType, string eTag, long lastModified, string cacheControl, TimeSpan expires, string correlationID = null, Dictionary<string, string> headers = null)
+		{
+			// prepare
+			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+
+			if (!string.IsNullOrWhiteSpace(contentType))
+				headers["Content-Type"] = $"{contentType}; charset=utf-8";
 
 			if (!string.IsNullOrWhiteSpace(eTag))
 				headers["ETag"] = $"\"{eTag}\"";
 
-			if (!string.IsNullOrWhiteSpace(lastModified))
-				headers["Last-Modified"] = lastModified;
+			if (lastModified > 0)
+				headers["Last-Modified"] = lastModified.FromUnixTimestamp().ToHttpString();
+
+			if (!string.IsNullOrWhiteSpace(cacheControl))
+			{
+				headers["Cache-Control"] = cacheControl;
+				if (expires != default(TimeSpan) && expires.Ticks > 0)
+					headers["Expires"] = lastModified.FromUnixTimestamp().Add(expires).ToHttpString();
+			}
 
 			if (!string.IsNullOrWhiteSpace(correlationID))
 				headers["X-Correlation-ID"] = correlationID;
 
-			if (context.Items.ContainsKey("PipelineStopwatch") && context.Items["PipelineStopwatch"] is Stopwatch stopwatch)
-			{
-				stopwatch.Stop();
-				headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
-			}
-
-			// update headers
-			headers.ForEach(kvp => context.Response.Headers[kvp.Key] = kvp.Value);
-			additionalHeaders?.ForEach(kvp => context.Response.Headers[kvp.Key] = kvp.Value);
+			// update
+			context.SetResponseHeaders(statusCode, headers);
 		}
 
 		/// <summary>
@@ -312,16 +325,10 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="stream">The stream to write</param>
-		/// <param name="contentType">The MIME type</param>
-		/// <param name="eTag">The entity tag</param>
-		/// <param name="lastModified">The last-modified time in HTTP date-time format</param>
-		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
-		/// <param name="blockSize">Size of one block to write</param>
-		/// <param name="additionalHeaders">The additional headers</param>
-		/// <param name="correlationID">The correlation identity</param>
+		/// <param name="headers">The headers</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, Stream stream, string contentType, string eTag = null, string lastModified = null, string contentDisposition = null, int blockSize = 0, Dictionary<string, string> additionalHeaders = null, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task WriteAsync(this HttpContext context, Stream stream, Dictionary<string, string> headers, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			// validate whether the file is too large
 			var totalBytes = stream.Length;
@@ -332,6 +339,7 @@ namespace net.vieapps.Components.Utility
 			}
 
 			// check ETag for supporting resumeable downloaders
+			var eTag = headers != null && headers.ContainsKey("ETag") ? headers["ETag"] : null;
 			if (!string.IsNullOrWhiteSpace(eTag))
 			{
 				var requestETag = context.GetRequestETag();
@@ -373,7 +381,7 @@ namespace net.vieapps.Components.Utility
 			}
 
 			// update headers
-			var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
 			{
 				{ "Content-Length", $"{(endBytes - startBytes) + 1}" },
 			};
@@ -384,14 +392,9 @@ namespace net.vieapps.Components.Utility
 			if (!string.IsNullOrWhiteSpace(eTag))
 				headers["Accept-Ranges"] = "bytes";
 
-			if (!string.IsNullOrWhiteSpace(contentDisposition))
-				headers["Content-Disposition"] = $"Attachment; Filename=\"{contentDisposition}\"";
-
-			additionalHeaders.ForEach(kvp => headers[kvp.Key] = kvp.Value);
-
 			try
 			{
-				context.SetResponseHeaders(flushAsPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, contentType, eTag, lastModified, correlationID, headers);
+				context.SetResponseHeaders(flushAsPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers);
 				await context.FlushAsync(cancellationToken).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException)
@@ -425,23 +428,21 @@ namespace net.vieapps.Components.Utility
 			else
 			{
 				// prepare blocks for writing
-				var packSize = blockSize > 0
-					? blockSize
-					: (int)AspNetCoreUtilityService.MinSmallFileSize;
-				if (packSize > (endBytes - startBytes))
-					packSize = (int)(endBytes - startBytes) + 1;
-				var totalBlocks = (int)Math.Ceiling((endBytes - startBytes + 0.0) / packSize);
+				var blockSize = (int)AspNetCoreUtilityService.MinSmallFileSize;
+				if (blockSize > (endBytes - startBytes))
+					blockSize = (int)(endBytes - startBytes) + 1;
+				var totalBlocks = (int)Math.Ceiling((endBytes - startBytes + 0.0) / blockSize);
 
 				// jump to requested position
 				stream.Seek(startBytes > 0 ? startBytes : 0, SeekOrigin.Begin);
 
 				// read and flush stream data to response stream
-				var buffer = new byte[packSize];
+				var buffer = new byte[blockSize];
 				var readBlocks = 0;
 				while (readBlocks < totalBlocks)
 					try
 					{
-						var readBytes = await stream.ReadAsync(buffer, 0, packSize, cancellationToken).ConfigureAwait(false);
+						var readBytes = await stream.ReadAsync(buffer, 0, blockSize, cancellationToken).ConfigureAwait(false);
 						if (readBytes > 0)
 						{
 							await context.WriteAsync(buffer, 0, readBytes, cancellationToken).ConfigureAwait(false);
@@ -466,14 +467,61 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="stream">The stream to write</param>
 		/// <param name="contentType">The MIME type</param>
-		/// <param name="eTag">The entity tag</param>
-		/// <param name="lastModified">The last-modified time in HTTP date-time format</param>
 		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
-		/// <param name="blockSize">Size of one block to write</param>
+		/// <param name="eTag">The entity tag</param>
+		/// <param name="lastModified">The Unix timestamp that presents last-modified time</param>
+		/// <param name="cacheControl">The string that presents cache control ('public', 'private', 'no-store')</param>
+		/// <param name="expires">The timespan that presents expires time of cache</param>
+		/// <param name="headers">The additional headers</param>
+		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, Stream stream, string contentType, string eTag, string lastModified, string contentDisposition, int blockSize, CancellationToken cancellationToken = default(CancellationToken))
-			=> context.WriteAsync(stream, contentType, eTag, lastModified, contentDisposition, blockSize, null, null, cancellationToken);
+		public static Task WriteAsync(this HttpContext context, Stream stream, string contentType, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default(TimeSpan), Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		{
+			// prepare headers
+			headers = new Dictionary<string, string>(headers, StringComparer.OrdinalIgnoreCase);
+
+			if (!string.IsNullOrWhiteSpace(contentType))
+				headers["Content-Type"] = $"{contentType}; charset=utf-8";
+
+			if (!string.IsNullOrWhiteSpace(contentDisposition))
+				headers["Content-Disposition"] = $"Attachment; Filename=\"{contentDisposition}\"";
+
+			if (!string.IsNullOrWhiteSpace(eTag))
+				headers["ETag"] = $"\"{eTag}\"";
+
+			if (lastModified > 0)
+				headers["Last-Modified"] = lastModified.FromUnixTimestamp().ToHttpString();
+
+			if (!string.IsNullOrWhiteSpace(cacheControl))
+			{
+				headers["Cache-Control"] = cacheControl;
+				if (expires != default(TimeSpan) && expires.Ticks > 0)
+					headers["Expires"] = lastModified.FromUnixTimestamp().Add(expires).ToHttpString();
+			}
+
+			if (!string.IsNullOrWhiteSpace(correlationID))
+				headers["X-Correlation-ID"] = correlationID;
+
+			// write
+			return context.WriteAsync(stream, headers, cancellationToken);
+		}
+
+		/// <summary>
+		/// Writes the stream to the output response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="stream">The stream to write</param>
+		/// <param name="contentType">The MIME type</param>
+		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
+		/// <param name="eTag">The entity tag</param>
+		/// <param name="lastModified">The Unix timestamp that presents last-modified time</param>
+		/// <param name="cacheControl">The string that presents cache control ('public', 'private', 'no-store')</param>
+		/// <param name="expires">The timespan that presents expires time of cache</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, Stream stream, string contentType, string contentDisposition, string eTag, long lastModified, string cacheControl, TimeSpan expires, CancellationToken cancellationToken = default(CancellationToken))
+			=> context.WriteAsync(stream, contentType, contentDisposition, eTag, lastModified, cacheControl, expires, null, null, cancellationToken);
 
 		/// <summary>
 		/// Writes binary data to the response body
@@ -481,18 +529,20 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="buffer">The data to write</param>
 		/// <param name="contentType">The MIME type</param>
-		/// <param name="eTag">The entity tag</param>
-		/// <param name="lastModified">The last-modified time in HTTP date-time format</param>
 		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
-		/// <param name="additionalHeaders">The additional headers</param>
+		/// <param name="eTag">The entity tag</param>
+		/// <param name="lastModified">The Unix timestamp that presents last-modified time</param>
+		/// <param name="cacheControl">The string that presents cache control ('public', 'private', 'no-store')</param>
+		/// <param name="expires">The timespan that presents expires time of cache</param>
+		/// <param name="headers">The additional headers</param>
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, byte[] buffer, string contentType, string eTag = null, string lastModified = null, string contentDisposition = null, Dictionary<string, string> additionalHeaders = null, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task WriteAsync(this HttpContext context, byte[] buffer, string contentType, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default(TimeSpan), Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			using (var stream = buffer.ToMemoryStream())
 			{
-				await context.WriteAsync(stream, contentType, eTag, lastModified, contentDisposition, 0, additionalHeaders, correlationID, cancellationToken).ConfigureAwait(false);
+				await context.WriteAsync(stream, contentType, contentDisposition, eTag, lastModified, cacheControl, expires, headers, correlationID, cancellationToken).ConfigureAwait(false);
 			}
 		}
 
@@ -502,13 +552,15 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="buffer">The data to write</param>
 		/// <param name="contentType">The MIME type</param>
-		/// <param name="eTag">The entity tag</param>
-		/// <param name="lastModified">The last-modified time in HTTP date-time format</param>
 		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
+		/// <param name="eTag">The entity tag</param>
+		/// <param name="lastModified">The Unix timestamp that presents last-modified time</param>
+		/// <param name="cacheControl">The string that presents cache control ('public', 'private', 'no-store')</param>
+		/// <param name="expires">The timespan that presents expires time of cache</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, byte[] buffer, string contentType, string eTag = null, string lastModified = null, string contentDisposition = null, CancellationToken cancellationToken = default(CancellationToken))
-			=> context.WriteAsync(buffer, contentType, eTag, lastModified, contentDisposition, null, null, cancellationToken);
+		public static Task WriteAsync(this HttpContext context, byte[] buffer, string contentType, string contentDisposition, string eTag, long lastModified, string cacheControl, TimeSpan expires, CancellationToken cancellationToken = default(CancellationToken))
+			=> context.WriteAsync(buffer, contentType, contentDisposition, eTag, lastModified, cacheControl, expires, null, null, cancellationToken);
 
 		/// <summary>
 		/// Writes the content of a file (binary) to the response body
@@ -518,18 +570,17 @@ namespace net.vieapps.Components.Utility
 		/// <param name="contentType">The MIME type</param>
 		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
 		/// <param name="eTag">The entity tag</param>
-		/// <param name="additionalHeaders">The additional headers</param>
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string eTag = null, string contentDisposition = null, Dictionary<string, string> additionalHeaders = null, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition = null, string eTag = null, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			if (fileInfo == null || !fileInfo.Exists)
 				throw new FileNotFoundException("Not found" + (fileInfo != null ? " [" + fileInfo.Name + "]" : ""));
 
 			using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, TextFileReader.BufferSize, true))
 			{
-				await context.WriteAsync(stream, contentType, eTag, fileInfo.LastWriteTime.ToHttpString(), contentDisposition, 0, additionalHeaders, correlationID, cancellationToken).ConfigureAwait(false);
+				await context.WriteAsync(stream, contentType, contentDisposition, eTag, fileInfo.LastWriteTime.ToUnixTimestamp(), "public", TimeSpan.FromDays(30), null, correlationID, cancellationToken).ConfigureAwait(false);
 			}
 		}
 
@@ -543,8 +594,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="eTag">The entity tag</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string eTag = null, string contentDisposition = null, CancellationToken cancellationToken = default(CancellationToken))
-			=> context.WriteAsync(fileInfo, contentType, eTag, contentDisposition, null, null, cancellationToken);
+		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition, string eTag = null, CancellationToken cancellationToken = default(CancellationToken))
+			=> context.WriteAsync(fileInfo, contentType, contentDisposition, eTag,null, cancellationToken);
 		#endregion
 
 		#region Write a data-set as Excel document to the response body
@@ -560,7 +611,7 @@ namespace net.vieapps.Components.Utility
 		{
 			using (var stream = await dataSet.SaveAsExcelAsync(cancellationToken).ConfigureAwait(false))
 			{
-				await context.WriteAsync(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", null, null, filename = filename ?? dataSet.Tables[0].TableName + ".xlsx", TextFileReader.BufferSize, cancellationToken).ConfigureAwait(false);
+				await context.WriteAsync(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename = filename ?? dataSet.Tables[0].TableName + ".xlsx", null, 0, null, default(TimeSpan), null, null, cancellationToken).ConfigureAwait(false);
 			}
 		}
 
@@ -613,10 +664,12 @@ namespace net.vieapps.Components.Utility
 		/// <param name="contentType"></param>
 		/// <param name="eTag"></param>
 		/// <param name="lastModified"></param>
+		/// <param name="cacheControl"></param>
+		/// <param name="expires"></param>
 		/// <param name="correlationID"></param>
-		public static void Write(this HttpContext context, string text, string contentType, string eTag, string lastModified, string correlationID = null)
+		public static void Write(this HttpContext context, string text, string contentType, string eTag, long lastModified, string cacheControl, TimeSpan expires, string correlationID = null)
 		{
-			context.SetResponseHeaders((int)HttpStatusCode.OK, contentType, eTag, lastModified, correlationID);
+			context.SetResponseHeaders((int)HttpStatusCode.OK, contentType, eTag, lastModified, cacheControl, expires, correlationID);
 			context.Write(text.ToBytes());
 		}
 
@@ -627,8 +680,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="text"></param>
 		/// <param name="contentType"></param>
 		/// <param name="correlationID"></param>
-		public static void Write(this HttpContext context, string text, string contentType, string correlationID = null) 
-			=> context.Write(text, contentType, null, null, correlationID);
+		public static void Write(this HttpContext context, string text, string contentType = "text/html", string correlationID = null) 
+			=> context.Write(text, contentType, null, 0, null, default(TimeSpan), correlationID);
 
 		/// <summary>
 		/// Writes the given text to the response body
@@ -638,12 +691,14 @@ namespace net.vieapps.Components.Utility
 		/// <param name="contentType"></param>
 		/// <param name="eTag"></param>
 		/// <param name="lastModified"></param>
+		/// <param name="cacheControl"></param>
+		/// <param name="expires"></param>
 		/// <param name="correlationID"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, string text, string contentType, string eTag, string lastModified, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task WriteAsync(this HttpContext context, string text, string contentType, string eTag, long lastModified, string cacheControl, TimeSpan expires, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			context.SetResponseHeaders((int)HttpStatusCode.OK, contentType, eTag, lastModified, correlationID);
+			context.SetResponseHeaders((int)HttpStatusCode.OK, contentType, eTag, lastModified, cacheControl, expires, correlationID);
 			await context.WriteAsync(text.ToBytes().ToArraySegment(), cancellationToken).ConfigureAwait(false);
 		}
 
@@ -654,8 +709,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="text"></param>
 		/// <param name="contentType"></param>
 		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, string text, string contentType = "text/html", string correlationID = null, CancellationToken cancellationToken = default(CancellationToken)) 
-			=> context.WriteAsync(text, contentType, null, null, correlationID, cancellationToken);
+		public static Task WriteAsync(this HttpContext context, string text, string contentType = "text/html", string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+			=> context.WriteAsync(text, contentType, null, 0, null, default(TimeSpan), correlationID);
 		#endregion
 
 		#region Write JSON data to the response body
@@ -667,9 +722,11 @@ namespace net.vieapps.Components.Utility
 		/// <param name="formatting"></param>
 		/// <param name="eTag"></param>
 		/// <param name="lastModified"></param>
+		/// <param name="cacheControl"></param>
+		/// <param name="expires"></param>
 		/// <param name="correlationID"></param>
-		public static void Write(this HttpContext context, JToken json, Formatting formatting, string eTag, string lastModified, string correlationID = null) 
-			=> context.Write(json?.ToString(formatting) ?? "{}", "application/json", eTag, lastModified, correlationID);
+		public static void Write(this HttpContext context, JToken json, Formatting formatting, string eTag, long lastModified, string cacheControl, TimeSpan expires, string correlationID = null)
+			=> context.Write(json?.ToString(formatting) ?? "{}", "application/json", eTag, lastModified, cacheControl, expires, correlationID);
 
 		/// <summary>
 		/// Writes the JSON to the response body
@@ -679,7 +736,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="formatting"></param>
 		/// <param name="correlationID"></param>
 		public static void Write(this HttpContext context, JToken json, Formatting formatting = Formatting.None, string correlationID = null) 
-			=> context.Write(json, formatting, null, null, correlationID);
+			=> context.Write(json, formatting, null, 0, null, default(TimeSpan), correlationID);
 
 		/// <summary>
 		/// Writes the JSON to the response body
@@ -689,9 +746,11 @@ namespace net.vieapps.Components.Utility
 		/// <param name="formatting"></param>
 		/// <param name="eTag"></param>
 		/// <param name="lastModified"></param>
+		/// <param name="cacheControl"></param>
+		/// <param name="expires"></param>
 		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting, string eTag, string lastModified, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken)) 
-			=> context.WriteAsync(json?.ToString(formatting) ?? "{}", "application/json", eTag, lastModified, correlationID, cancellationToken);
+		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting, string eTag, long lastModified, string cacheControl, TimeSpan expires, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+			=> context.WriteAsync(json?.ToString(formatting) ?? "{}", "application/json", eTag, lastModified, cacheControl, expires, correlationID);
 
 		/// <summary>
 		/// Writes the JSON to the response body
@@ -700,8 +759,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="json"></param>
 		/// <param name="formatting"></param>
 		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting = Formatting.None, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken)) 
-			=> context.WriteAsync(json, formatting, null, null, correlationID, cancellationToken);
+		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting = Formatting.None, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+			=> context.WriteAsync(json, formatting, null, 0, null, default(TimeSpan), correlationID);
 
 		/// <summary>
 		/// Writes the JSON to the response body
@@ -901,64 +960,6 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="app"></param>
 		public static void UseErrorCodePages(this IApplicationBuilder app) => app.UseStatusCodePages(context => context.ShowHttpErrorAsync());
-		#endregion
-
-		#region Add & Get session's item
-		/// <summary>
-		/// Adds an item into ASP.NET Core Session
-		/// </summary>
-		/// <param name="session"></param>
-		/// <param name="key"></param>
-		/// <param name="value"></param>
-		public static void Add(this ISession session, string key, object value)
-		{
-			if (!string.IsNullOrWhiteSpace(key))
-				try
-				{
-					session.Set(key, Helper.Serialize(value));
-				}
-				catch (Exception ex)
-				{
-					Logger.Log<ISession>(LogLevel.Debug, LogLevel.Warning, $"Cannot add object into session: {ex.Message}", ex);
-				}
-		}
-
-		/// <summary>
-		/// Gets an item from ASP.NET Core Session
-		/// </summary>
-		/// <param name="session"></param>
-		/// <param name="key"></param>
-		/// <returns></returns>
-		public static object Get(this ISession session, string key) 
-			=> !string.IsNullOrWhiteSpace(key)
-				? session.TryGetValue(key, out byte[] value)
-					? Helper.Deserialize(value)
-					: null
-				: null;
-
-		/// <summary>
-		/// Gets an item from ASP.NET Core Session
-		/// </summary>
-		/// <param name="session"></param>
-		/// <param name="key"></param>
-		/// <returns></returns>
-		public static T Get<T>(this ISession session, string key) 
-			=> !string.IsNullOrWhiteSpace(key)
-				? session.TryGetValue(key, out byte[] value)
-					? Helper.Deserialize<T>(value)
-					: default(T)
-				: default(T);
-
-		/// <summary>
-		/// Checks to see the key is existed in ASP.NET Core Session or not
-		/// </summary>
-		/// <param name="session"></param>
-		/// <param name="key"></param>
-		/// <returns></returns>
-		public static bool ContainsKey(this ISession session, string key) 
-			=> !string.IsNullOrWhiteSpace(key)
-				? session.Keys.FirstOrDefault(k => k.IsEquals(key)) != null
-				: false;
 		#endregion
 
 		#region Wrap a WebSocket connection of ASP.NET Core into WebSocket component

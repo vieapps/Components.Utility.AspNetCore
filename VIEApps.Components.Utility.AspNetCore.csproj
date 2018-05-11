@@ -1,18 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>netcoreapp2.0</TargetFramework>
+		<TargetFramework>netstandard2.0</TargetFramework>
 		<RootNamespace>net.vieapps.Components.Utility</RootNamespace>
 		<AssemblyName>VIEApps.Components.Utility.AspNetCore</AssemblyName>
 		<AssemblyTitle>VIEApps NGX Utility</AssemblyTitle>
-		<AssemblyVersion>10.2.2.1806</AssemblyVersion>
-		<FileVersion>10.2.2.1806</FileVersion>
+		<AssemblyVersion>10.2.1.1805</AssemblyVersion>
+		<FileVersion>10.2.1.1805</FileVersion>
 		<InformationalVersion>v10.2.netstandard-2+rev:2018.06.01</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<PackageId>VIEApps.Components.Utility.AspNetCore</PackageId>
-		<Version>10.2.2.1806</Version>
+		<Version>10.2.1.1805</Version>
 		<SignAssembly>false</SignAssembly>
 		<DelaySign>false</DelaySign>
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
@@ -28,12 +28,12 @@
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
 		<WarningLevel>3</WarningLevel>
-		<DocumentationFile>bin\Debug\netcoreapp2.0\VIEApps.Components.Utility.AspNetCore.xml</DocumentationFile>
+		<DocumentationFile>bin\Debug\netstandard2.0\VIEApps.Components.Utility.AspNetCore.xml</DocumentationFile>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
 		<WarningLevel>3</WarningLevel>
-		<DocumentationFile>bin\Release\netcoreapp2.0\VIEApps.Components.Utility.AspNetCore.xml</DocumentationFile>
+		<DocumentationFile>bin\Release\netstandard2.0\VIEApps.Components.Utility.AspNetCore.xml</DocumentationFile>
 	</PropertyGroup>
 
 	<ItemGroup>
