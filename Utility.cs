@@ -81,11 +81,13 @@ namespace net.vieapps.Components.Utility
 		/// Sets the approriate headers of response
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="statusCode"></param>
-		/// <param name="headers"></param>
-		public static void SetResponseHeaders(this HttpContext context, int statusCode, Dictionary<string, string> headers = null)
+		/// <param name="statusCode">The HTTP status code</param>
+		/// <param name="headers">The HTTP headers</param>
+		/// <param name="tryWriteEmptyResponse">true to try to write empty response</param>
+		public static void SetResponseHeaders(this HttpContext context, int statusCode, Dictionary<string, string> headers = null, bool tryWriteEmptyResponse = false)
 		{
 			context.Response.StatusCode = statusCode;
+
 			headers?.ForEach(kvp => context.Response.Headers[kvp.Key] = kvp.Value);
 			context.Response.Headers["Server"] = "VIEApps NGX";
 			if (context.Items.ContainsKey("PipelineStopwatch") && context.Items["PipelineStopwatch"] is Stopwatch stopwatch)
@@ -93,6 +95,9 @@ namespace net.vieapps.Components.Utility
 				stopwatch.Stop();
 				context.Response.Headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
 			}
+
+			if (tryWriteEmptyResponse)
+				context.Write(new byte[0]);
 		}
 
 		/// <summary>
@@ -114,7 +119,7 @@ namespace net.vieapps.Components.Utility
 				headers["Content-Type"] = $"{contentType}; charset=utf-8";
 
 			if (!string.IsNullOrWhiteSpace(eTag))
-				headers["ETag"] = $"\"{eTag}\"";
+				headers["ETag"] = eTag;
 
 			if (lastModified > 0)
 				headers["Last-Modified"] = lastModified.FromUnixTimestamp().ToHttpString();
@@ -123,7 +128,7 @@ namespace net.vieapps.Components.Utility
 			{
 				headers["Cache-Control"] = cacheControl;
 				if (expires != default(TimeSpan) && expires.Ticks > 0)
-					headers["Expires"] = lastModified.FromUnixTimestamp().Add(expires).ToHttpString();
+					headers["Expires"] = DateTime.Now.Add(expires).ToHttpString();
 			}
 
 			if (!string.IsNullOrWhiteSpace(correlationID))
@@ -316,9 +321,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, ArraySegment<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			return context.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken);
-		}
+			=> context.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken);
 
 		/// <summary>
 		/// Writes the stream to the output response body
@@ -488,7 +491,7 @@ namespace net.vieapps.Components.Utility
 				headers["Content-Disposition"] = $"Attachment; Filename=\"{contentDisposition}\"";
 
 			if (!string.IsNullOrWhiteSpace(eTag))
-				headers["ETag"] = $"\"{eTag}\"";
+				headers["ETag"] = eTag;
 
 			if (lastModified > 0)
 				headers["Last-Modified"] = lastModified.FromUnixTimestamp().ToHttpString();
@@ -497,7 +500,7 @@ namespace net.vieapps.Components.Utility
 			{
 				headers["Cache-Control"] = cacheControl;
 				if (expires != default(TimeSpan) && expires.Ticks > 0)
-					headers["Expires"] = lastModified.FromUnixTimestamp().Add(expires).ToHttpString();
+					headers["Expires"] = DateTime.Now.Add(expires).ToHttpString();
 			}
 
 			if (!string.IsNullOrWhiteSpace(correlationID))
@@ -919,32 +922,32 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static async Task ShowHttpErrorAsync(this StatusCodeContext context)
 		{
-			// prepare
-			var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-			{
-				{ "Content-Type", $"{(string)context.HttpContext.Items["ErrorType"] ?? "text/plain"}; charset=utf-8" },
-				{ "Cache-Control", "private, no-store, no-cache" },
-				{ "Expires", "-1" },
-				{ "Pragma", "no-cache" },
-				{ "Server", "VIEApps NGX" }
-			};
+			// prepare body
 			var body = ((string)context.HttpContext.Items["ErrorDetails"] ?? $"Error {context.HttpContext.Response.StatusCode}").ToBytes();
 
-			var encoding = string.Join(", ", context.HttpContext.Request.Headers["Accept-Encoding"]);
-			if (encoding == "*" || encoding.IsContains("deflate"))
-				encoding = "deflate";
-			else if (encoding.IsContains("gzip"))
+			var encoding = context.HttpContext.Request.Headers["Accept-Encoding"].Join(", ");
+			if (encoding.IsContains("gzip"))
 				encoding = "gzip";
+			else if (encoding.IsContains("deflate"))
+				encoding = "deflate";
 			else
 				encoding = null;
 
 			if (!string.IsNullOrWhiteSpace(encoding))
-			{
-				headers["Content-Encoding"] = encoding;
 				body = body.Compress(encoding);
-			}
 
-			headers["Content-Length"] = $"{body.Length}";
+			// prepare headers
+			var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+			{
+				{ "Content-Length", $"{body.Length}" },
+				{ "Content-Type", $"{(string)context.HttpContext.Items["ErrorType"] ?? "text/plain"}; charset=utf-8" },
+				{ "Cache-Control", "private, no-store, no-cache" },
+				{ "Expires", "-1" },
+				{ "Server", "VIEApps NGX" }
+			};
+
+			if (!string.IsNullOrWhiteSpace(encoding))
+				headers["Content-Encoding"] = encoding;
 
 			if (context.HttpContext.Items.ContainsKey("PipelineStopwatch") && context.HttpContext.Items["PipelineStopwatch"] is Stopwatch stopwatch)
 			{
@@ -952,7 +955,7 @@ namespace net.vieapps.Components.Utility
 				headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
 			}
 
-			// write details to output
+			// write to output
 			headers.ForEach(kvp => context.HttpContext.Response.Headers[kvp.Key] = kvp.Value);
 			await context.HttpContext.WriteAsync(body).ConfigureAwait(false);
 		}
