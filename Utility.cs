@@ -845,8 +845,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="type"></param>
 		/// <param name="correlationID"></param>
 		/// <param name="stack"></param>
-		/// <param name="showStack"></param>
-		public static void WriteHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, JObject stack = null, bool showStack = true)
+		public static void WriteHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, JArray stack = null)
 		{
 			// prepare
 			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
@@ -854,14 +853,15 @@ namespace net.vieapps.Components.Utility
 			{
 				{ "Message", message },
 				{ "Type", type },
+				{ "Verb", context.Request.Method },
 				{ "Code", statusCode }
 			};
 
 			if (!string.IsNullOrWhiteSpace(correlationID))
 				json["CorrelationID"] = correlationID;
 
-			if (stack != null && showStack)
-				json["Stack"] = stack;
+			if (stack != null)
+				json["StackTrace"] = stack;
 
 			// update into context to use at status page middleware
 			context.Items["ErrorType"] = "application/json";
@@ -879,33 +879,35 @@ namespace net.vieapps.Components.Utility
 		/// <param name="message"></param>
 		/// <param name="type"></param>
 		/// <param name="correlationID"></param>
-		/// <param name="ex"></param>
+		/// <param name="exception"></param>
 		/// <param name="showStack"></param>
-		public static void WriteHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID, Exception ex, bool showStack = true)
+		public static void WriteHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID, Exception exception, bool showStack = true)
 		{
-			JObject stack = null;
-			if (ex != null && showStack)
+			JArray stack = null;
+			if (exception != null && showStack)
 			{
-				stack = new JObject()
+				stack = new JArray
 				{
-					{ "Stack", ex.StackTrace }
+					new JObject
+					{
+						{ "Message", exception.Message },
+						{ "Type", exception.GetType().ToString() },
+						{ "Stack", exception.StackTrace }
+					}
 				};
-				var inners = new JArray();
-				var counter = 1;
-				var inner = ex.InnerException;
+				var inner = exception.InnerException;
 				while (inner != null)
 				{
-					inners.Add(new JObject()
+					stack.Add(new JObject
 					{
-						{ $"Inner_{counter}", inner.StackTrace }
+						{ "Message", inner.Message },
+						{ "Type", inner.GetType().ToString() },
+						{ "Stack", inner.StackTrace }
 					});
 					inner = inner.InnerException;
-					counter++;
 				}
-				if (inners.Count > 0)
-					stack["Inners"] = inners;
 			}
-			context.WriteHttpError(statusCode, message, type, correlationID, stack, showStack);
+			context.WriteHttpError(statusCode, message, type, correlationID, stack);
 		}
 		#endregion
 
@@ -977,7 +979,11 @@ namespace net.vieapps.Components.Utility
 				var webSocket = await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
 				var remoteEndPoint = new IPEndPoint(context.Connection.RemoteIpAddress, context.Connection.RemotePort);
 				var localEndPoint = new IPEndPoint(context.Connection.LocalIpAddress, context.Connection.LocalPort);
-				await websocket.WrapAsync(webSocket, context.GetRequestUri(), remoteEndPoint, localEndPoint).ConfigureAwait(false);
+				var userAgent = context.Request.Headers["User-Agent"].First();
+				var urlReferrer = context.Request.Headers["Referrer"].First();
+				if (string.IsNullOrWhiteSpace(urlReferrer))
+					urlReferrer = context.Request.Headers["Origin"].First();
+				await websocket.WrapAsync(webSocket, context.GetRequestUri(), remoteEndPoint, localEndPoint, userAgent, urlReferrer).ConfigureAwait(false);
 			}
 			else
 				whenIsNotWebSocketRequest?.Invoke(context);
