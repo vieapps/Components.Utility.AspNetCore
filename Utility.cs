@@ -802,8 +802,9 @@ namespace net.vieapps.Components.Utility
 			html += "</body>\r\n</html>";
 
 			// update into context to use at status page middleware
-			context.Items["ErrorType"] = "text/html";
-			context.Items["ErrorDetails"] = html;
+			context.Items["StatusCode"] = statusCode;
+			context.Items["ContentType"] = "text/html";
+			context.Items["Error"] = html;
 
 			// set status code to raise status page middleware
 			context.Response.StatusCode = statusCode;
@@ -867,8 +868,9 @@ namespace net.vieapps.Components.Utility
 				json["StackTrace"] = stack;
 
 			// update into context to use at status page middleware
-			context.Items["ErrorType"] = "application/json";
-			context.Items["ErrorDetails"] = json.ToString(Formatting.Indented);
+			context.Items["StatusCode"] = statusCode;
+			context.Items["ContentType"] = "application/json";
+			context.Items["Error"] = json.ToString(Formatting.Indented);
 
 			// set status code to raise status page middleware
 			context.Response.StatusCode = statusCode;
@@ -922,8 +924,13 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static async Task ShowHttpErrorAsync(this StatusCodeContext context)
 		{
+			// prepare status
+			var statusCode = context.HttpContext.Items.ContainsKey("StatusCode")
+				? (int)context.HttpContext.Items["StatusCode"]
+				: context.HttpContext.Response.StatusCode;
+
 			// prepare body
-			var body = ((string)context.HttpContext.Items["ErrorDetails"] ?? $"Error {context.HttpContext.Response.StatusCode}").ToBytes();
+			var body = ((string)context.HttpContext.Items["Error"] ?? $"Error {statusCode}").ToBytes();
 
 			var encoding = context.HttpContext.Request.Headers["Accept-Encoding"].Join(", ");
 			if (encoding.IsContains("gzip"))
@@ -940,7 +947,7 @@ namespace net.vieapps.Components.Utility
 			var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 			{
 				{ "Content-Length", $"{body.Length}" },
-				{ "Content-Type", $"{(string)context.HttpContext.Items["ErrorType"] ?? "text/plain"}; charset=utf-8" },
+				{ "Content-Type", $"{(string)context.HttpContext.Items["ContentType"] ?? "text/plain"}; charset=utf-8" },
 				{ "Cache-Control", "private, no-store, no-cache" },
 				{ "Expires", "-1" },
 				{ "Server", "VIEApps NGX" }
@@ -955,8 +962,9 @@ namespace net.vieapps.Components.Utility
 				headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
 			}
 
-			// write to output
+			// show
 			headers.ForEach(kvp => context.HttpContext.Response.Headers[kvp.Key] = kvp.Value);
+			context.HttpContext.Response.StatusCode = statusCode;
 			await context.HttpContext.WriteAsync(body).ConfigureAwait(false);
 		}
 
