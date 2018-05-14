@@ -33,7 +33,7 @@ namespace net.vieapps.Components.Utility
 			if (!string.IsNullOrWhiteSpace(key))
 				try
 				{
-					session.Set(key, Helper.Serialize(value));
+					session.Set(key.ToLower(), Helper.Serialize(value));
 				}
 				catch (Exception ex)
 				{
@@ -49,7 +49,7 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static object Get(this ISession session, string key) 
 			=> !string.IsNullOrWhiteSpace(key)
-				? session.TryGetValue(key, out byte[] value)
+				? session.TryGetValue(key.ToLower(), out byte[] value)
 					? Helper.Deserialize(value)
 					: null
 				: null;
@@ -62,7 +62,7 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static T Get<T>(this ISession session, string key) 
 			=> !string.IsNullOrWhiteSpace(key)
-				? session.TryGetValue(key, out byte[] value)
+				? session.TryGetValue(key.ToLower(), out byte[] value)
 					? Helper.Deserialize<T>(value)
 					: default(T)
 				: default(T);
@@ -75,20 +75,22 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static bool ContainsKey(this ISession session, string key) 
 			=> !string.IsNullOrWhiteSpace(key)
-				? session.Keys.FirstOrDefault(k => k.IsEquals(key)) != null
+				? session.Keys.FirstOrDefault(k => k.IsEquals(key.ToLower())) != null
 				: false;
 		#endregion
 
 		#region To name & value collection
 		/// <summary>
-		/// Converts this dictionary to collection of name and value
+		/// Converts this dictionary of string values to collection of name and value
 		/// </summary>
 		/// <param name="dictionary"></param>
+		/// <param name="onPreCompleted">The action to run before completed</param>
 		/// <returns></returns>
-		public static NameValueCollection ToNameValueCollection(this IDictionary<string, StringValues> dictionary)
+		public static NameValueCollection ToNameValueCollection(this IDictionary<string, StringValues> dictionary, Action<NameValueCollection> onPreCompleted = null)
 		{
 			var nvCollection = new NameValueCollection();
-			dictionary.ForEach(kvp => nvCollection[kvp.Key] = kvp.Value);
+			dictionary.ForEach(kvp => nvCollection[kvp.Key.ToLower()] = kvp.Value);
+			onPreCompleted?.Invoke(nvCollection);
 			return nvCollection;
 		}
 
@@ -96,8 +98,34 @@ namespace net.vieapps.Components.Utility
 		/// Converts this query string to collection of name and value
 		/// </summary>
 		/// <param name="queryString"></param>
+		/// <param name="onPreCompleted">The action to run before completed</param>
 		/// <returns></returns>
-		public static NameValueCollection ToNameValueCollection(this QueryString queryString) => QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToNameValueCollection();
+		public static NameValueCollection ToNameValueCollection(this QueryString queryString, Action<NameValueCollection> onPreCompleted = null)
+			=> QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToNameValueCollection(onPreCompleted);
+		#endregion
+
+		#region To dictionary
+		/// <summary>
+		/// Converts this dictionary of string values to dictinary of string
+		/// </summary>
+		/// <param name="dictionary"></param>
+		/// <param name="onPreCompleted">The action to run before completed</param>
+		/// <returns></returns>
+		public static Dictionary<string, string> ToDictionary(this IDictionary<string, StringValues> dictionary, Action<Dictionary<string, string>> onPreCompleted = null)
+		{
+			var dict = dictionary.ToDictionary(kvp => kvp.Key.ToLower(), kvp => kvp.Value.First());
+			onPreCompleted?.Invoke(dict);
+			return dict;
+		}
+
+		/// <summary>
+		/// Converts this query string to dictinary of string
+		/// </summary>
+		/// <param name="queryString"></param>
+		/// <param name="onPreCompleted">The action to run before completed</param>
+		/// <returns></returns>
+		public static Dictionary<string, string> ToDictionary(this QueryString queryString, Action<Dictionary<string, string>> onPreCompleted = null)
+			=> QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToDictionary(onPreCompleted);
 		#endregion
 
 	}

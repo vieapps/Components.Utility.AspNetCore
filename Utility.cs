@@ -753,7 +753,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="expires"></param>
 		/// <param name="correlationID"></param>
 		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting, string eTag, long lastModified, string cacheControl, TimeSpan expires, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
-			=> context.WriteAsync(json?.ToString(formatting) ?? "{}", "application/json", eTag, lastModified, cacheControl, expires, correlationID);
+			=> context.WriteAsync(json?.ToString(formatting) ?? "{}", "application/json", eTag, lastModified, cacheControl, expires, correlationID, cancellationToken);
 
 		/// <summary>
 		/// Writes the JSON to the response body
@@ -763,7 +763,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="formatting"></param>
 		/// <param name="correlationID"></param>
 		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting = Formatting.None, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
-			=> context.WriteAsync(json, formatting, null, 0, null, default(TimeSpan), correlationID);
+			=> context.WriteAsync(json, formatting, null, 0, null, default(TimeSpan), correlationID, cancellationToken);
 
 		/// <summary>
 		/// Writes the JSON to the response body
