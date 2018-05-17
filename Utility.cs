@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.StaticFiles;
 
 using Microsoft.Extensions.Logging;
 
@@ -78,6 +79,77 @@ namespace net.vieapps.Components.Utility
 		}
 
 		/// <summary>
+		/// Gets the original Uniform Resource Identifier (URI) of the request that was sent by the client
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static Uri GetRequestUri(this HttpContext context)
+			=> new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}{context.Request.PathBase}{context.Request.QueryString}");
+
+		/// <summary>
+		/// Parses the query of an uri
+		/// </summary>
+		/// <param name="uri"></param>
+		/// /// <param name="onCompleted">Action to run on parsing completed</param>
+		/// <returns>The collection of key and value pair</returns>
+		public static Dictionary<string, string> ParseQuery(this Uri uri, Action<Dictionary<string, string>> onCompleted = null)
+		{
+			var query = QueryHelpers.ParseQuery(uri.Query).ToDictionary(kvp => kvp.Key, kvp => kvp.Value.First(), StringComparer.OrdinalIgnoreCase);
+			onCompleted?.Invoke(query);
+			return query;
+		}
+
+		/// <summary>
+		/// Gets the approriate HTTP Status Code of the exception
+		/// </summary>
+		/// <param name="exception"></param>
+		/// <returns></returns>
+		public static int GetHttpStatusCode(this Exception exception)
+		{
+			if (exception is FileNotFoundException || exception is ServiceNotFoundException || exception is InformationNotFoundException)
+				return (int)HttpStatusCode.NotFound;
+
+			if (exception is AccessDeniedException)
+				return (int)HttpStatusCode.Forbidden;
+
+			if (exception is UnauthorizedException)
+				return (int)HttpStatusCode.Unauthorized;
+
+			if (exception is MethodNotAllowedException)
+				return (int)HttpStatusCode.MethodNotAllowed;
+
+			if (exception is InvalidRequestException)
+				return (int)HttpStatusCode.BadRequest;
+
+			if (exception is NotImplementedException)
+				return (int)HttpStatusCode.NotImplemented;
+
+			if (exception is ConnectionTimeoutException)
+				return (int)HttpStatusCode.RequestTimeout;
+
+			return (int)HttpStatusCode.InternalServerError;
+		}
+
+		/// <summary>
+		/// Gets the MIME type of a file
+		/// </summary>
+		/// <param name="filename"></param>
+		/// <returns></returns>
+		public static string GetMimeType(this string filename)
+			=> new FileExtensionContentTypeProvider().TryGetContentType(filename, out string staticMimeType)
+				? staticMimeType
+				: "text/plain";
+
+		/// <summary>
+		/// Gets the MIME type of a file
+		/// </summary>
+		/// <param name="fileInfo"></param>
+		/// <returns></returns>
+		public static string GetMimeType(this FileInfo fileInfo) => fileInfo.Name.GetMimeType();
+		#endregion
+
+		#region Set responses' headers
+		/// <summary>
 		/// Sets the approriate headers of response
 		/// </summary>
 		/// <param name="context"></param>
@@ -139,55 +211,37 @@ namespace net.vieapps.Components.Utility
 		}
 
 		/// <summary>
-		/// Gets the approriate HTTP Status Code of the exception
-		/// </summary>
-		/// <param name="exception"></param>
-		/// <returns></returns>
-		public static int GetHttpStatusCode(this Exception exception)
-		{
-			if (exception is FileNotFoundException || exception is ServiceNotFoundException || exception is InformationNotFoundException)
-				return (int)HttpStatusCode.NotFound;
-
-			if (exception is AccessDeniedException)
-				return (int)HttpStatusCode.Forbidden;
-
-			if (exception is UnauthorizedException)
-				return (int)HttpStatusCode.Unauthorized;
-
-			if (exception is MethodNotAllowedException)
-				return (int)HttpStatusCode.MethodNotAllowed;
-
-			if (exception is InvalidRequestException)
-				return (int)HttpStatusCode.BadRequest;
-
-			if (exception is NotImplementedException)
-				return (int)HttpStatusCode.NotImplemented;
-
-			if (exception is ConnectionTimeoutException)
-				return (int)HttpStatusCode.RequestTimeout;
-
-			return (int)HttpStatusCode.InternalServerError;
-		}
-
-		/// <summary>
-		/// Gets the original Uniform Resource Identifier (URI) of the request that was sent by the client
+		/// Set response headers with special status code for using with StatusCodeHandler (UseStatusCodePages middleware)
 		/// </summary>
 		/// <param name="context"></param>
-		/// <returns></returns>
-		public static Uri GetRequestUri(this HttpContext context) 
-			=> new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}{context.Request.PathBase}{context.Request.QueryString}");
-
-		/// <summary>
-		/// Parses the query of an uri
-		/// </summary>
-		/// <param name="uri"></param>
-		/// /// <param name="onCompleted">Action to run on parsing completed</param>
-		/// <returns>The collection of key and value pair</returns>
-		public static Dictionary<string, string> ParseQuery(this Uri uri, Action<Dictionary<string, string>> onCompleted = null)
+		/// <param name="statusCode"></param>
+		/// <param name="eTag"></param>
+		/// <param name="lastModified"></param>
+		/// <param name="cacheControl"></param>
+		/// <param name="correlationID"></param>
+		public static void SetResponseHeaders(this HttpContext context, int statusCode, string eTag, long lastModified, string cacheControl, string correlationID)
 		{
-			var query = QueryHelpers.ParseQuery(uri.Query).ToDictionary(kvp => kvp.Key, kvp => kvp.Value.First(), StringComparer.OrdinalIgnoreCase);
-			onCompleted?.Invoke(query);
-			return query;
+			// prepare headers
+			var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+			if (!string.IsNullOrWhiteSpace(eTag))
+				headers["ETag"] = eTag;
+
+			if (!string.IsNullOrWhiteSpace(correlationID))
+				headers["X-Correlation-ID"] = correlationID;
+
+			if (lastModified > 0)
+				headers["Last-Modified"] = lastModified.FromUnixTimestamp().ToHttpString();
+
+			// update into context to use at status page middleware
+			context.Items["StatusCode"] = statusCode;
+			context.Items["Body"] = "";
+			context.Items["Headers"] = headers;
+			if (!string.IsNullOrWhiteSpace(cacheControl))
+				context.Items["CacheControl"] = cacheControl;
+
+			// update
+			context.SetResponseHeaders(statusCode);
 		}
 		#endregion
 
@@ -337,7 +391,7 @@ namespace net.vieapps.Components.Utility
 			var totalBytes = stream.Length;
 			if (totalBytes > context.GetBodyRequestMaxLength())
 			{
-				context.Response.StatusCode = (int)HttpStatusCode.RequestEntityTooLarge;
+				context.SetResponseHeaders((int)HttpStatusCode.RequestEntityTooLarge, null, 0, "private", null);
 				return;
 			}
 
@@ -348,7 +402,7 @@ namespace net.vieapps.Components.Utility
 				var requestETag = context.GetRequestETag();
 				if (!string.IsNullOrWhiteSpace(requestETag) && !eTag.Equals(requestETag))
 				{
-					context.Response.StatusCode = (int)HttpStatusCode.PreconditionFailed;
+					context.SetResponseHeaders((int)HttpStatusCode.PreconditionFailed, null, 0, "private", null);
 					return;
 				}
 			}
@@ -364,7 +418,7 @@ namespace net.vieapps.Components.Utility
 				startBytes = range[1].CastAs<long>();
 				if (startBytes >= totalBytes)
 				{
-					context.Response.StatusCode = (int)HttpStatusCode.PreconditionFailed;
+					context.SetResponseHeaders((int)HttpStatusCode.PreconditionFailed, null, 0, "private", null);
 					return;
 				}
 
@@ -414,8 +468,8 @@ namespace net.vieapps.Components.Utility
 				try
 				{
 					var buffer = new byte[totalBytes];
-					var readBytes = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
-					await context.WriteAsync(buffer, 0, readBytes, cancellationToken).ConfigureAwait(false);
+					var read = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
+					await context.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
 					await context.FlushAsync(cancellationToken).ConfigureAwait(false);
 				}
 				catch (OperationCanceledException)
@@ -430,28 +484,28 @@ namespace net.vieapps.Components.Utility
 			// flush to output stream
 			else
 			{
-				// prepare blocks for writing
-				var blockSize = (int)AspNetCoreUtilityService.MinSmallFileSize;
-				if (blockSize > (endBytes - startBytes))
-					blockSize = (int)(endBytes - startBytes) + 1;
-				var totalBlocks = (int)Math.Ceiling((endBytes - startBytes + 0.0) / blockSize);
-
 				// jump to requested position
 				stream.Seek(startBytes > 0 ? startBytes : 0, SeekOrigin.Begin);
 
 				// read and flush stream data to response stream
-				var buffer = new byte[blockSize];
-				var readBlocks = 0;
-				while (readBlocks < totalBlocks)
+				var size = (int)AspNetCoreUtilityService.MinSmallFileSize;
+				if (size > (endBytes - startBytes))
+					size = (int)(endBytes - startBytes) + 1;
+
+				var buffer = new byte[size];
+				var total = (int)Math.Ceiling((endBytes - startBytes + 0.0) / size);
+				var count = 0;
+
+				while (count < total)
 					try
 					{
-						var readBytes = await stream.ReadAsync(buffer, 0, blockSize, cancellationToken).ConfigureAwait(false);
-						if (readBytes > 0)
+						var read = await stream.ReadAsync(buffer, 0, size, cancellationToken).ConfigureAwait(false);
+						if (read > 0)
 						{
-							await context.WriteAsync(buffer, 0, readBytes, cancellationToken).ConfigureAwait(false);
+							await context.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
 							await context.FlushAsync(cancellationToken).ConfigureAwait(false);
 						}
-						readBlocks++;
+						count++;
 					}
 					catch (OperationCanceledException)
 					{
@@ -804,7 +858,7 @@ namespace net.vieapps.Components.Utility
 			// update into context to use at status page middleware
 			context.Items["StatusCode"] = statusCode;
 			context.Items["ContentType"] = "text/html";
-			context.Items["Error"] = html;
+			context.Items["Body"] = html;
 
 			// set status code to raise status page middleware
 			context.Response.StatusCode = statusCode;
@@ -870,7 +924,7 @@ namespace net.vieapps.Components.Utility
 			// update into context to use at status page middleware
 			context.Items["StatusCode"] = statusCode;
 			context.Items["ContentType"] = "application/json";
-			context.Items["Error"] = json.ToString(Formatting.Indented);
+			context.Items["Body"] = json.ToString(Formatting.Indented);
 
 			// set status code to raise status page middleware
 			context.Response.StatusCode = statusCode;
@@ -918,11 +972,11 @@ namespace net.vieapps.Components.Utility
 
 		#region Show errors of HTTP status codes
 		/// <summary>
-		/// Shows the details of an error to HTTP output (status page)
+		/// Shows the details of status page
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
-		public static async Task ShowHttpErrorAsync(this StatusCodeContext context)
+		public static async Task ShowStatusPageAsync(this StatusCodeContext context)
 		{
 			// prepare status
 			var statusCode = context.HttpContext.Items.ContainsKey("StatusCode")
@@ -930,10 +984,12 @@ namespace net.vieapps.Components.Utility
 				: context.HttpContext.Response.StatusCode;
 
 			// prepare body
-			var body = ((string)context.HttpContext.Items["Error"] ?? $"Error {statusCode}").ToBytes();
+			var body = ((string)context.HttpContext.Items["Body"] ?? $"Error {statusCode}").ToBytes();
 
 			var encoding = context.HttpContext.Request.Headers["Accept-Encoding"].Join(", ");
-			if (encoding.IsContains("gzip"))
+			if (body.Length < 1)
+				encoding = null;
+			else if (encoding.IsContains("gzip"))
 				encoding = "gzip";
 			else if (encoding.IsContains("deflate"))
 				encoding = "deflate";
@@ -944,14 +1000,15 @@ namespace net.vieapps.Components.Utility
 				body = body.Compress(encoding);
 
 			// prepare headers
-			var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+			var headers = (Dictionary<string, string>)context.HttpContext.Items["Headers"] ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			headers["Server"] = "VIEApps NGX";
+			headers["Cache-Control"] = (string)context.HttpContext.Items["CacheControl"] ?? "private, no-store, no-cache";
+
+			if (body.Length > 0)
 			{
-				{ "Content-Length", $"{body.Length}" },
-				{ "Content-Type", $"{(string)context.HttpContext.Items["ContentType"] ?? "text/plain"}; charset=utf-8" },
-				{ "Cache-Control", "private, no-store, no-cache" },
-				{ "Expires", "-1" },
-				{ "Server", "VIEApps NGX" }
-			};
+				headers["Content-Length"] = $"{body.Length}";
+				headers["Content-Type"] = $"{(string)context.HttpContext.Items["ContentType"] ?? "text/plain"}; charset=utf-8";
+			}
 
 			if (!string.IsNullOrWhiteSpace(encoding))
 				headers["Content-Encoding"] = encoding;
@@ -962,17 +1019,18 @@ namespace net.vieapps.Components.Utility
 				headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
 			}
 
-			// show
+			// response
 			headers.ForEach(kvp => context.HttpContext.Response.Headers[kvp.Key] = kvp.Value);
 			context.HttpContext.Response.StatusCode = statusCode;
-			await context.HttpContext.WriteAsync(body).ConfigureAwait(false);
+			if (body.Length > 0)
+				await context.HttpContext.WriteAsync(body).ConfigureAwait(false);
 		}
 
 		/// <summary>
-		/// Adds a StatusCodePages middleware with the specified handler that checks for responses with status codes between 400 and 599 that do not have a body
+		/// Adds a handler of StatusCodePages middleware for responses with specified status codes
 		/// </summary>
 		/// <param name="app"></param>
-		public static void UseErrorCodePages(this IApplicationBuilder app) => app.UseStatusCodePages(context => context.ShowHttpErrorAsync());
+		public static void UseStatusCodeHandler(this IApplicationBuilder app) => app.UseStatusCodePages(context => context.ShowStatusPageAsync());
 		#endregion
 
 		#region Wrap a WebSocket connection of ASP.NET Core into WebSocket component
@@ -981,9 +1039,9 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="websocket"></param>
 		/// <param name="context">The working context of ASP.NET Core</param>
-		/// <param name="whenIsNotWebSocketRequest">Action to run when the request is not WebSocket request</param>
+		/// <param name="whenIsNotWebSocketRequestAsync">Action to run when the request is not WebSocket request</param>
 		/// <returns></returns>
-		public static async Task WrapAsync(this WebSocket websocket, HttpContext context, Action<HttpContext> whenIsNotWebSocketRequest = null)
+		public static async Task WrapAsync(this WebSocket websocket, HttpContext context, Func<HttpContext, Task> whenIsNotWebSocketRequestAsync = null)
 		{
 			if (context.WebSockets.IsWebSocketRequest)
 			{
@@ -996,8 +1054,8 @@ namespace net.vieapps.Components.Utility
 					urlReferrer = context.Request.Headers["Origin"].First();
 				await websocket.WrapAsync(webSocket, context.GetRequestUri(), remoteEndPoint, localEndPoint, userAgent, urlReferrer).ConfigureAwait(false);
 			}
-			else
-				whenIsNotWebSocketRequest?.Invoke(context);
+			else if (whenIsNotWebSocketRequestAsync != null)
+				await whenIsNotWebSocketRequestAsync(context).ConfigureAwait(false);
 		}
 
 		/// <summary>
@@ -1005,9 +1063,10 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="websocket"></param>
 		/// <param name="context">The working context of ASP.NET Core</param>
-		/// <param name="whenIsNotWebSocketRequest">Action to run when the request is not WebSocket request</param>
+		/// <param name="whenIsNotWebSocketRequestAsync">Action to run when the request is not WebSocket request</param>
 		/// <returns></returns>
-		public static Task WrapWebSocketAsync(this WebSocket websocket, HttpContext context, Action<HttpContext> whenIsNotWebSocketRequest = null) => websocket.WrapAsync(context, whenIsNotWebSocketRequest);
+		public static Task WrapWebSocketAsync(this WebSocket websocket, HttpContext context, Func<HttpContext, Task> whenIsNotWebSocketRequestAsync = null)
+			=> websocket.WrapAsync(context, whenIsNotWebSocketRequestAsync);
 		#endregion
 
 	}
