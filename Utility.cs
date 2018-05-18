@@ -536,7 +536,7 @@ namespace net.vieapps.Components.Utility
 		public static Task WriteAsync(this HttpContext context, Stream stream, string contentType, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default(TimeSpan), Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			// prepare headers
-			headers = new Dictionary<string, string>(headers, StringComparer.OrdinalIgnoreCase);
+			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
 
 			if (!string.IsNullOrWhiteSpace(contentType))
 				headers["Content-Type"] = $"{contentType}; charset=utf-8";
@@ -970,7 +970,7 @@ namespace net.vieapps.Components.Utility
 		}
 		#endregion
 
-		#region Show errors of HTTP status codes
+		#region Show page of HTTP status codes
 		/// <summary>
 		/// Shows the details of status page
 		/// </summary>
