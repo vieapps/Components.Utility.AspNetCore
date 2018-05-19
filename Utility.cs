@@ -35,8 +35,8 @@ namespace net.vieapps.Components.Utility
 	{
 
 		#region Extension helpers
-		internal const long MinSmallFileSize = 1024 * 40;
-		internal const long MaxSmallFileSize = 1024 * 1024 * 2;
+		internal static int BufferSize { get; } = 1024 * 16;
+		internal static long SmallStreamLength { get; } = 1024 * 1024 * 2;
 
 		/// <summary>
 		/// Gets max length of body request
@@ -463,14 +463,14 @@ namespace net.vieapps.Components.Utility
 				throw;
 			}
 
-			// write small file directly to output stream
-			if (!flushAsPartialContent && totalBytes <= AspNetCoreUtilityService.MaxSmallFileSize)
+			// write small stream
+			if (!flushAsPartialContent && totalBytes <= AspNetCoreUtilityService.SmallStreamLength)
 				try
 				{
-					var buffer = new byte[totalBytes];
-					var read = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
-					await context.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
-					await context.FlushAsync(cancellationToken).ConfigureAwait(false);
+					using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
+					{
+						await stream.CopyToAsync(context.Response.Body, AspNetCoreUtilityService.BufferSize, cts.Token).ConfigureAwait(false);
+					}
 				}
 				catch (OperationCanceledException)
 				{
@@ -481,14 +481,14 @@ namespace net.vieapps.Components.Utility
 					throw;
 				}
 
-			// flush to output stream
+			// write large stream
 			else
 			{
 				// jump to requested position
 				stream.Seek(startBytes > 0 ? startBytes : 0, SeekOrigin.Begin);
 
 				// read and flush stream data to response stream
-				var size = (int)AspNetCoreUtilityService.MinSmallFileSize;
+				var size = AspNetCoreUtilityService.BufferSize;
 				if (size > (endBytes - startBytes))
 					size = (int)(endBytes - startBytes) + 1;
 
@@ -542,7 +542,7 @@ namespace net.vieapps.Components.Utility
 				headers["Content-Type"] = $"{contentType}; charset=utf-8";
 
 			if (!string.IsNullOrWhiteSpace(contentDisposition))
-				headers["Content-Disposition"] = $"Attachment; Filename=\"{contentDisposition}\"";
+				headers["Content-Disposition"] = $"Attachment; Filename=\"{contentDisposition.UrlEncode()}\"";
 
 			if (!string.IsNullOrWhiteSpace(eTag))
 				headers["ETag"] = eTag;
@@ -637,7 +637,7 @@ namespace net.vieapps.Components.Utility
 
 			using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, TextFileReader.BufferSize, true))
 			{
-				await context.WriteAsync(stream, contentType, contentDisposition, eTag, fileInfo.LastWriteTime.ToUnixTimestamp(), "public", TimeSpan.FromDays(30), null, correlationID, cancellationToken).ConfigureAwait(false);
+				await context.WriteAsync(stream, contentType, contentDisposition, eTag, fileInfo.LastWriteTime.ToUnixTimestamp(), "public", TimeSpan.FromDays(7), null, correlationID, cancellationToken).ConfigureAwait(false);
 			}
 		}
 
