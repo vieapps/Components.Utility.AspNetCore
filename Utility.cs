@@ -148,11 +148,10 @@ namespace net.vieapps.Components.Utility
 		/// <param name="name">The string that presents name of parameter want to get</param>
 		/// <returns></returns>
 		public static string GetHeaderParameter(this HttpContext context, string name)
-			=> !string.IsNullOrWhiteSpace(name)
-				? context.Request.Headers.ToDictionary().TryGetValue(name, out string value)
-					? value
-					: null
-				: null;
+		{
+			var value = !string.IsNullOrWhiteSpace(name) ? context.Request.Headers[name].First() : string.Empty;
+			return !string.IsNullOrWhiteSpace(value) ? value : null;
+		}
 
 		/// <summary>
 		/// Gets the value of a query parameter
@@ -291,7 +290,7 @@ namespace net.vieapps.Components.Utility
 			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
 
 			if (!string.IsNullOrWhiteSpace(contentType))
-				headers["Content-Type"] = $"{contentType}; charset=utf-8";
+				headers["Content-Type"] = $"{contentType}{(contentType.IsEndsWith("; charset=utf-8") ? "" : "; charset=utf-8")}";
 
 			if (!string.IsNullOrWhiteSpace(eTag))
 				headers["ETag"] = eTag;
@@ -652,7 +651,7 @@ namespace net.vieapps.Components.Utility
 			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
 
 			if (!string.IsNullOrWhiteSpace(contentType))
-				headers["Content-Type"] = $"{contentType}; charset=utf-8";
+				headers["Content-Type"] = $"{contentType}{(contentType.IsEndsWith("; charset=utf-8") ? "" : "; charset=utf-8")}";
 
 			if (!string.IsNullOrWhiteSpace(contentDisposition))
 				headers["Content-Disposition"] = $"Attachment; Filename=\"{contentDisposition.UrlEncode()}\"";
@@ -1120,7 +1119,8 @@ namespace net.vieapps.Components.Utility
 			if (body.Length > 0)
 			{
 				headers["Content-Length"] = $"{body.Length}";
-				headers["Content-Type"] = $"{(string)context.HttpContext.Items["ContentType"] ?? "text/plain"}; charset=utf-8";
+				var contentType = (string)context.HttpContext.Items["ContentType"] ?? "text/plain";
+				headers["Content-Type"] = $"{contentType}{(contentType.IsEndsWith("; charset=utf-8") ? "" : "; charset=utf-8")}";
 			}
 
 			if (!string.IsNullOrWhiteSpace(encoding))
