@@ -79,27 +79,6 @@ namespace net.vieapps.Components.Utility
 		}
 
 		/// <summary>
-		/// Gets the original Uniform Resource Identifier (URI) of the request that was sent by the client
-		/// </summary>
-		/// <param name="context"></param>
-		/// <returns></returns>
-		public static Uri GetRequestUri(this HttpContext context)
-			=> new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}{context.Request.PathBase}{context.Request.QueryString}");
-
-		/// <summary>
-		/// Parses the query of an uri
-		/// </summary>
-		/// <param name="uri"></param>
-		/// /// <param name="onCompleted">Action to run on parsing completed</param>
-		/// <returns>The collection of key and value pair</returns>
-		public static Dictionary<string, string> ParseQuery(this Uri uri, Action<Dictionary<string, string>> onCompleted = null)
-		{
-			var query = QueryHelpers.ParseQuery(uri.Query).ToDictionary(kvp => kvp.Key, kvp => kvp.Value.First(), StringComparer.OrdinalIgnoreCase);
-			onCompleted?.Invoke(query);
-			return query;
-		}
-
-		/// <summary>
 		/// Gets the approriate HTTP Status Code of the exception
 		/// </summary>
 		/// <param name="exception"></param>
@@ -146,6 +125,130 @@ namespace net.vieapps.Components.Utility
 		/// <param name="fileInfo"></param>
 		/// <returns></returns>
 		public static string GetMimeType(this FileInfo fileInfo) => fileInfo.Name.GetMimeType();
+		#endregion
+
+		#region Environment extensions
+		/// <summary>
+		/// Parses the query of an uri
+		/// </summary>
+		/// <param name="uri"></param>
+		/// /// <param name="onCompleted">Action to run on parsing completed</param>
+		/// <returns>The collection of key and value pair</returns>
+		public static Dictionary<string, string> ParseQuery(this Uri uri, Action<Dictionary<string, string>> onCompleted = null)
+		{
+			var query = QueryHelpers.ParseQuery(uri.Query).ToDictionary(kvp => kvp.Key, kvp => kvp.Value.First(), StringComparer.OrdinalIgnoreCase);
+			onCompleted?.Invoke(query);
+			return query;
+		}
+
+		/// <summary>
+		/// Gets the value of a header parameter
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="name">The string that presents name of parameter want to get</param>
+		/// <returns></returns>
+		public static string GetHeaderParameter(this HttpContext context, string name)
+			=> !string.IsNullOrWhiteSpace(name)
+				? context.Request.Headers.ToDictionary().TryGetValue(name, out string value)
+					? value
+					: null
+				: null;
+
+		/// <summary>
+		/// Gets the value of a query parameter
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="name">The string that presents name of parameter want to get</param>
+		/// <returns></returns>
+		public static string GetQueryParameter(this HttpContext context, string name)
+			=> !string.IsNullOrWhiteSpace(name)
+				? context.Request.QueryString.ToDictionary().TryGetValue(name, out string value)
+					? value
+					: null
+				: null;
+
+		/// <summary>
+		/// Gets the value of a parameter (first from header, if not found then get from query string)
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="name">The string that presents name of parameter want to get</param>
+		/// <returns></returns>
+		public static string GetParameter(this HttpContext context, string name) => context.GetHeaderParameter(name) ?? context.GetQueryParameter(name);
+
+		/// <summary>
+		/// Gets the original Uniform Resource Identifier (URI) of the request that was sent by the client
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static Uri GetUri(this HttpContext context)
+			=> new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}{context.Request.PathBase}{context.Request.QueryString}");
+
+		/// <summary>
+		/// Gets the original Uniform Resource Identifier (URI) of the request that was sent by the client
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static Uri GetRequestUri(this HttpContext context) => context.GetUri();
+
+		/// <summary>
+		/// Gets the url of current uri that not include query-string
+		/// </summary>
+		/// <param name="uri"></param>
+		/// <param name="toLower"></param>
+		/// <param name="useRelativeUrl"></param>
+		/// <returns></returns>
+		public static string GetUrl(this Uri uri, bool toLower = false, bool useRelativeUrl = false)
+		{
+			var url = useRelativeUrl ? uri.PathAndQuery : uri.ToString();
+			url = toLower ? url.ToLower() : url;
+			var pos = url.IndexOf("?");
+			return pos > 0 ? url.Left(pos) : url;
+		}
+
+		/// <summary>
+		/// Gets the url of current request (query-string is excluded)
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="toLower"></param>
+		/// <param name="useRelativeUrl"></param>
+		/// <returns></returns>
+		public static string GetRequestUrl(this HttpContext context, bool toLower = false, bool useRelativeUrl = false) => context.GetRequestUri().GetUrl(toLower, useRelativeUrl);
+
+		/// <summary>
+		/// Gets the host url (scheme, host and port - if not equals to default)
+		/// </summary>
+		/// <param name="uri"></param>
+		/// <returns></returns>
+		public static string GetHostUrl(this Uri uri) => uri.Scheme + "://" + uri.Host + (uri.Port != 80 && uri.Port != 443 ? $":{uri.Port}" : "");
+
+		/// <summary>
+		/// Gets the host url (scheme, host and port - if not equals to default)
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static string GetHostUrl(this HttpContext context) => context.GetRequestUri().GetHostUrl();
+
+		/// <summary>
+		/// Gets path segments of this uri
+		/// </summary>
+		/// <param name="uri"></param>
+		/// <param name="toLower"></param>
+		/// <returns></returns>
+		public static string[] GetRequestPathSegments(this Uri uri, bool toLower = false)
+		{
+			var path = uri.GetUrl(toLower, true);
+			return path.Equals("/") || path.Equals("~/")
+				? new[] { "" }
+				: path.ToArray('/', true);
+		}
+
+		/// <summary>
+		/// Gets path segments of this request
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="toLower"></param>
+		/// <returns></returns>
+		public static string[] GetRequestPathSegments(this HttpContext context, bool toLower = false) => context.GetRequestUri().GetRequestPathSegments(toLower);
 		#endregion
 
 		#region Set responses' headers
@@ -366,6 +469,16 @@ namespace net.vieapps.Components.Utility
 				await context.Response.Body.WriteAsync(buffer, offset > -1 ? offset : 0, count > 0 ? count : buffer.Length, cts.Token).ConfigureAwait(false);
 			}
 		}
+
+		/// <summary>
+		/// Writes binary data to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="buffer"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, byte[] buffer, CancellationToken cancellationToken)
+			=> context.WriteAsync(buffer, 0, 0, cancellationToken);
 
 		/// <summary>
 		/// Writes binary data to the response body
@@ -972,7 +1085,7 @@ namespace net.vieapps.Components.Utility
 
 		#region Show page of HTTP status codes
 		/// <summary>
-		/// Shows the details of status page
+		/// Shows the details page of a status code
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>

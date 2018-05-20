@@ -21,7 +21,7 @@ namespace net.vieapps.Components.Utility
 	public static partial class AspNetCoreCollectionService
 	{
 
-		#region Add & Get session's item
+		#region Working with sessions items & contexts' items
 		/// <summary>
 		/// Adds an item into ASP.NET Core Session
 		/// </summary>
@@ -77,9 +77,21 @@ namespace net.vieapps.Components.Utility
 			=> !string.IsNullOrWhiteSpace(key)
 				? session.Keys.FirstOrDefault(k => k.IsEquals(key.ToLower())) != null
 				: false;
+
+		/// <summary>
+		/// Gets an object from this context items
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="context"></param>
+		/// <param name="name"></param>
+		/// <returns></returns>
+		public static T GetItem<T>(this HttpContext context, string name)
+			=> context.Items.TryGetValue(name, out object value) && value is T
+				? (T)value
+				: default(T);
 		#endregion
 
-		#region To name & value collection
+		#region Conversions
 		/// <summary>
 		/// Converts this dictionary of string values to collection of name and value
 		/// </summary>
@@ -102,9 +114,7 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static NameValueCollection ToNameValueCollection(this QueryString queryString, Action<NameValueCollection> onPreCompleted = null)
 			=> QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToNameValueCollection(onPreCompleted);
-		#endregion
 
-		#region To dictionary
 		/// <summary>
 		/// Converts this dictionary of string values to dictinary of string
 		/// </summary>
