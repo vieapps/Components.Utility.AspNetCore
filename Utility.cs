@@ -321,10 +321,11 @@ namespace net.vieapps.Components.Utility
 		/// <param name="lastModified"></param>
 		/// <param name="cacheControl"></param>
 		/// <param name="correlationID"></param>
-		public static void SetResponseHeaders(this HttpContext context, int statusCode, string eTag, long lastModified, string cacheControl, string correlationID)
+		/// <param name="headers"></param>
+		public static void SetResponseHeaders(this HttpContext context, int statusCode, string eTag, long lastModified, string cacheControl, string correlationID, Dictionary<string, string> headers = null)
 		{
 			// prepare headers
-			var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
 
 			if (!string.IsNullOrWhiteSpace(eTag))
 				headers["ETag"] = eTag;
@@ -339,7 +340,7 @@ namespace net.vieapps.Components.Utility
 			context.Items["StatusCode"] = statusCode;
 			context.Items["Body"] = "";
 			context.Items["Headers"] = headers;
-			if (!string.IsNullOrWhiteSpace(cacheControl))
+			if (cacheControl != null)
 				context.Items["CacheControl"] = cacheControl;
 
 			// update
@@ -347,7 +348,7 @@ namespace net.vieapps.Components.Utility
 		}
 		#endregion
 
-		#region Flush response
+		#region Flush & Redirect response
 		/// <summary>
 		/// Sends all currently buffered output to the client
 		/// </summary>
@@ -365,6 +366,34 @@ namespace net.vieapps.Components.Utility
 			{
 				await context.Response.Body.FlushAsync(cts.Token).ConfigureAwait(false);
 			}
+		}
+
+		/// <summary>
+		/// Redirects the response by send the status code (302 - Redirect) to client
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="location"></param>
+		public static void Redirect(this HttpContext context, string location)
+		{
+			if (!string.IsNullOrWhiteSpace(location))
+				context.SetResponseHeaders((int)HttpStatusCode.Redirect, null, 0, "", null, new Dictionary<string, string>
+				{
+					{ "Location", location }
+				});
+		}
+
+		/// <summary>
+		/// Redirects permanently the response by send the status code (301 - MovedPermanently) to client
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="location"></param>
+		public static void RedirectPermanently(this HttpContext context, string location)
+		{
+			if (!string.IsNullOrWhiteSpace(location))
+				context.SetResponseHeaders((int)HttpStatusCode.MovedPermanently, null, 0, "", null, new Dictionary<string, string>
+				{
+					{ "Location", location }
+				});
 		}
 		#endregion
 
@@ -1114,7 +1143,10 @@ namespace net.vieapps.Components.Utility
 			// prepare headers
 			var headers = (Dictionary<string, string>)context.HttpContext.Items["Headers"] ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 			headers["Server"] = "VIEApps NGX";
-			headers["Cache-Control"] = (string)context.HttpContext.Items["CacheControl"] ?? "private, no-store, no-cache";
+
+			var cacheControl = (string)context.HttpContext.Items["CacheControl"] ?? "private, no-store, no-cache";
+			if (!string.IsNullOrWhiteSpace(cacheControl))
+				headers["Cache-Control"] = cacheControl;
 
 			if (body.Length > 0)
 			{
