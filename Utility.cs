@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -248,6 +249,27 @@ namespace net.vieapps.Components.Utility
 		/// <param name="toLower"></param>
 		/// <returns></returns>
 		public static string[] GetRequestPathSegments(this HttpContext context, bool toLower = false) => context.GetRequestUri().GetRequestPathSegments(toLower);
+
+		/// <summary>
+		/// Gets state that determines is running on Windows
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static bool IsWinndows(this HttpContext context) => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+
+		/// <summary>
+		/// Gets state that determines is running on Linux
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static bool IsLinux(this HttpContext context) => RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+
+		/// <summary>
+		/// Gets state that determines is running on macOS
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static bool IsMacOS(this HttpContext context) => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
 		#endregion
 
 		#region Set responses' headers
