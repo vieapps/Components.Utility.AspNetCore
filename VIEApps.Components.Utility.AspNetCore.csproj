@@ -7,7 +7,7 @@
 		<AssemblyTitle>VIEApps NGX Utility</AssemblyTitle>
 		<AssemblyVersion>10.2.2.1806</AssemblyVersion>
 		<FileVersion>10.2.2.1806</FileVersion>
-		<InformationalVersion>v10.2.netstandard-2+rev:2018.05.20</InformationalVersion>
+		<InformationalVersion>v10.2.netstandard-2+rev:2018.05.23</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
@@ -21,7 +21,7 @@
 		<Authors>VIEApps.net</Authors>
 		<Copyright>© 2018 VIEApps.net</Copyright>
 		<PackageTags>utility;aspnetcore;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Changes: retarget the package to .NET Standard 2.0, add more extension methods</PackageReleaseNotes>
+		<PackageReleaseNotes>Improvement: change FileShared to Read, Write, Delete while reading from file to prevent IO exception</PackageReleaseNotes>
 		<PackageProjectUrl>https://github.com/vieapps/Components.Utility.AspNetCore</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.Utility.AspNetCore</RepositoryUrl>
 	</PropertyGroup>
