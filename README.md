@@ -5,4 +5,5 @@ The general purpose utility library for development apps on ASP.NET Core
 - ... and others
 
 ## NuGet
-https://www.nuget.org/packages/VIEApps.Components.Utility.AspNetCore/
+
+[![NuGet](https://img.shields.io/nuget/v/VIEApps.Components.Utility.AspNetCore.svg)](https://www.nuget.org/packages/VIEApps.Components.Utility.AspNetCore)
