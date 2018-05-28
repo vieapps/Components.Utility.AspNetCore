@@ -614,8 +614,10 @@ namespace net.vieapps.Components.Utility
 
 			try
 			{
-				context.SetResponseHeaders(flushAsPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers);
+				context.SetResponseHeaders(flushAsPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers, context.Request.Method.IsEquals("HEAD"));
 				await context.FlushAsync(cancellationToken).ConfigureAwait(false);
+				if (context.Request.Method.IsEquals("HEAD"))
+					return;
 			}
 			catch (OperationCanceledException)
 			{
