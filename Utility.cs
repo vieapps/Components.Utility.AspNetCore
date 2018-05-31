@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 using Microsoft.AspNetCore.Http;
@@ -26,6 +27,8 @@ using Newtonsoft.Json.Linq;
 using net.vieapps.Components.WebSockets;
 using net.vieapps.Components.Security;
 #endregion
+
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("VIEApps.Components.XUnitTests")]
 
 namespace net.vieapps.Components.Utility
 {
@@ -1119,16 +1122,32 @@ namespace net.vieapps.Components.Utility
 		/// Shows the details page of a status code
 		/// </summary>
 		/// <param name="context"></param>
+		/// <param name="getHtmlBody">The function to build the HTML body for displaying when no details of error is provided</param>
 		/// <returns></returns>
-		public static async Task ShowStatusPageAsync(this StatusCodeContext context)
+		public static async Task ShowStatusPageAsync(this StatusCodeContext context, Func<int, HttpContext, string> getHtmlBody = null)
 		{
 			// prepare status
 			var statusCode = context.HttpContext.Items.ContainsKey("StatusCode")
 				? (int)context.HttpContext.Items["StatusCode"]
 				: context.HttpContext.Response.StatusCode;
 
+			// prepare content-type & body string
+			var contentType = (string)context.HttpContext.Items["ContentType"] ?? "text/plain";
+			var bodystr = (string)context.HttpContext.Items["Body"] ?? $"Error {statusCode}";
+			if ("text/plain".Equals(contentType) && $"Error {statusCode}".Equals(bodystr))
+			{
+				contentType = "text/html";
+				bodystr = getHtmlBody?.Invoke(statusCode, context.HttpContext) ?? "<!DOCTYPE html>\r\n" +
+					$"<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n" +
+					$"<head><title>Error {statusCode}</title></head>\r\n<body>\r\n" +
+					$"<h1>HTTP {statusCode}</h1>\r\n" +
+					$"<hr/>\r\n" +
+					$"<div>Powered by VIEApps NGX v{Assembly.GetExecutingAssembly().GetVersion()}</div>\r\n" +
+					$"</body>\r\n</html>";
+			}
+
 			// prepare body
-			var body = ((string)context.HttpContext.Items["Body"] ?? $"Error {statusCode}").ToBytes();
+			var body = bodystr.ToBytes();
 
 			var encoding = context.HttpContext.Request.Headers["Accept-Encoding"].Join(", ");
 			if (body.Length < 1)
@@ -1154,7 +1173,6 @@ namespace net.vieapps.Components.Utility
 			if (body.Length > 0)
 			{
 				headers["Content-Length"] = $"{body.Length}";
-				var contentType = (string)context.HttpContext.Items["ContentType"] ?? "text/plain";
 				headers["Content-Type"] = $"{contentType}{(contentType.IsEndsWith("; charset=utf-8") ? "" : "; charset=utf-8")}";
 			}
 
@@ -1178,7 +1196,8 @@ namespace net.vieapps.Components.Utility
 		/// Adds a handler of StatusCodePages middleware for responses with specified status codes
 		/// </summary>
 		/// <param name="app"></param>
-		public static void UseStatusCodeHandler(this IApplicationBuilder app) => app.UseStatusCodePages(context => context.ShowStatusPageAsync());
+		/// <param name="getHtmlBody">The function to build the HTML body for displaying when no details of error is provided</param>
+		public static void UseStatusCodeHandler(this IApplicationBuilder app, Func<int, HttpContext, string> getHtmlBody = null) => app.UseStatusCodePages(context => context.ShowStatusPageAsync(getHtmlBody));
 		#endregion
 
 		#region Wrap a WebSocket connection of ASP.NET Core into WebSocket component
