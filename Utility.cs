@@ -1214,6 +1214,13 @@ namespace net.vieapps.Components.Utility
 			{
 				var webSocket = await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
 				var remoteEndPoint = new IPEndPoint(context.Connection.RemoteIpAddress, context.Connection.RemotePort);
+				if (remoteEndPoint.Port == 0 && context.Request.Headers["x-original-for"] != "")
+					try
+					{
+						var uri = new Uri($"ws://{context.Request.Headers["x-original-for"]}");
+						remoteEndPoint = new IPEndPoint(context.Connection.RemoteIpAddress, uri.Port);
+					}
+					catch { }
 				var localEndPoint = new IPEndPoint(context.Connection.LocalIpAddress, context.Connection.LocalPort);
 				var userAgent = context.Request.Headers["User-Agent"].First();
 				var urlReferrer = context.Request.Headers["Referrer"].First();
