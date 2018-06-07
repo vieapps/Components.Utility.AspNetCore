@@ -1202,7 +1202,7 @@ namespace net.vieapps.Components.Utility
 
 		#region Wrap a WebSocket connection of ASP.NET Core into WebSocket component
 		/// <summary>
-		/// Wrap a WebSocket connection of ASP.NET Core
+		/// Wraps a WebSocket connection of ASP.NET Core
 		/// </summary>
 		/// <param name="websocket"></param>
 		/// <param name="context">The working context of ASP.NET Core</param>
@@ -1214,11 +1214,19 @@ namespace net.vieapps.Components.Utility
 			{
 				var webSocket = await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
 				var remoteEndPoint = new IPEndPoint(context.Connection.RemoteIpAddress, context.Connection.RemotePort);
-				if (remoteEndPoint.Port == 0 && context.Request.Headers["x-original-for"] != "")
+				if (remoteEndPoint.Port == 0 && (context.Request.Headers["x-original-remote-endpoint"] != "" || context.Request.Headers["x-original-for"] != ""))
 					try
 					{
-						var uri = new Uri($"ws://{context.Request.Headers["x-original-for"]}");
-						remoteEndPoint = new IPEndPoint(context.Connection.RemoteIpAddress, uri.Port);
+						if (context.Request.Headers["x-original-remote-endpoint"] != "")
+						{
+							var uri = new Uri($"ws://{context.Request.Headers["x-original-remote-endpoint"]}");
+							remoteEndPoint = new IPEndPoint(IPAddress.Parse(uri.Host), uri.Port);
+						}
+						else
+						{
+							var uri = new Uri($"ws://{context.Request.Headers["x-original-for"]}");
+							remoteEndPoint = new IPEndPoint(context.Connection.RemoteIpAddress, uri.Port);
+						}
 					}
 					catch { }
 				var localEndPoint = new IPEndPoint(context.Connection.LocalIpAddress, context.Connection.LocalPort);
@@ -1233,7 +1241,7 @@ namespace net.vieapps.Components.Utility
 		}
 
 		/// <summary>
-		/// Wrap a WebSocket connection of ASP.NET Core
+		/// Wraps a WebSocket connection of ASP.NET Core
 		/// </summary>
 		/// <param name="websocket"></param>
 		/// <param name="context">The working context of ASP.NET Core</param>
