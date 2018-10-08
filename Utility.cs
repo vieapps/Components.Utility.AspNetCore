@@ -1054,7 +1054,7 @@ namespace net.vieapps.Components.Utility
 		{
 			// prepare
 			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
-			var json = new JObject()
+			var json = new JObject
 			{
 				{ "Message", message },
 				{ "Type", type },
