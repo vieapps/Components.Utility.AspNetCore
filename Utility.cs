@@ -1197,7 +1197,7 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="app"></param>
 		/// <param name="getHtmlBody">The function to build the HTML body for displaying when no details of error is provided</param>
-		public static void UseStatusCodeHandler(this IApplicationBuilder app, Func<int, HttpContext, string> getHtmlBody = null) => app.UseStatusCodePages(context => context.ShowStatusPageAsync(getHtmlBody));
+		public static IApplicationBuilder UseStatusCodeHandler(this IApplicationBuilder app, Func<int, HttpContext, string> getHtmlBody = null) => app.UseStatusCodePages(context => context.ShowStatusPageAsync(getHtmlBody));
 		#endregion
 
 		#region Wrap a WebSocket connection of ASP.NET Core into WebSocket component
