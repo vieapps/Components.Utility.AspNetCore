@@ -37,6 +37,10 @@ namespace net.vieapps.Components.Utility
 	/// </summary>
 	public static partial class AspNetCoreUtilityService
 	{
+		/// <summary>
+		/// Gets or Sets the name of server to write into headers
+		/// </summary>
+		public static string ServerName { get; set; } = "VIEApps NGX";
 
 		#region Extension helpers
 		internal static int BufferSize { get; } = 1024 * 16;
@@ -252,6 +256,28 @@ namespace net.vieapps.Components.Utility
 		/// <param name="toLower"></param>
 		/// <returns></returns>
 		public static string[] GetRequestPathSegments(this HttpContext context, bool toLower = false) => context.GetRequestUri().GetRequestPathSegments(toLower);
+
+		/// <summary>
+		/// Gets the HTML body of a status code
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="statusCode"></param>
+		/// <returns></returns>
+		public static string GetStatusCodeHtmlBody(this HttpContext context, int statusCode, string message = null, string type = null, string correlationID = null, string stack = null, bool showStack = true)
+		{
+			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
+			var html = "<!DOCTYPE html>\r\n" +
+				$"<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n" +
+				$"<head><title>Error {statusCode}</title></head>\r\n<body>\r\n" +
+				$"<h1>HTTP {statusCode}{(string.IsNullOrWhiteSpace(message) ? "" : $" - {message.Replace("<", "&lt;").Replace(">", "&gt;")}")}</h1>\r\n" +
+				$"<hr/>\r\n";
+			if (!string.IsNullOrWhiteSpace(type))
+				html += $"<div>Type: {type}</div>\r\n";
+			if (!string.IsNullOrWhiteSpace(stack) && showStack)
+				html += $"<div>Stack:</div>\r\n<blockquote>{stack.Replace("<", "&lt;").Replace(">", "&gt;").Replace("\n", "<br/>").Replace("\r", "").Replace("\t", "")}</blockquote>\r\n";
+			html += $"<hr/>\r\n" + $"<div> {(!string.IsNullOrWhiteSpace(correlationID) ? $"Correlation ID: {correlationID} - " : "")}Powered by {AspNetCoreUtilityService.ServerName ?? "VIEApps NGX"} v{Assembly.GetExecutingAssembly().GetVersion(false)}</div>\r\n</body>\r\n</html>";
+			return html;
+		}
 		#endregion
 
 		#region Set responses' headers
@@ -267,7 +293,7 @@ namespace net.vieapps.Components.Utility
 			context.Response.StatusCode = statusCode;
 
 			headers?.ForEach(kvp => context.Response.Headers[kvp.Key] = kvp.Value);
-			context.Response.Headers["Server"] = "VIEApps NGX";
+			context.Response.Headers["Server"] = AspNetCoreUtilityService.ServerName ?? "VIEApps NGX";
 			if (context.Items.ContainsKey("PipelineStopwatch") && context.Items["PipelineStopwatch"] is Stopwatch stopwatch)
 			{
 				stopwatch.Stop();
@@ -990,22 +1016,11 @@ namespace net.vieapps.Components.Utility
 		/// <param name="showStack"></param>
 		public static void ShowHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, string stack = null, bool showStack = true)
 		{
-			// prepare
-			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
-			var html = "<!DOCTYPE html>\r\n" +
-				$"<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n" +
-				$"<head><title>Error {statusCode}</title></head>\r\n<body>\r\n" +
-				$"<h1>HTTP {statusCode} - {message.Replace("<", "&lt;").Replace(">", "&gt;")}</h1>\r\n" +
-				$"<hr/>\r\n" +
-				$"<div>Type: {type} {(!string.IsNullOrWhiteSpace(correlationID) ? " - Correlation ID: " + correlationID : "")}</div>\r\n";
-			if (!string.IsNullOrWhiteSpace(stack) && showStack)
-				html += $"<div><br/>Stack:</div>\r\n<blockquote>{stack.Replace("<", "&lt;").Replace(">", "&gt;").Replace("\n", "<br/>").Replace("\r", "").Replace("\t", "")}</blockquote>\r\n";
-			html += "</body>\r\n</html>";
-
 			// update into context to use at status page middleware
+			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
 			context.Items["StatusCode"] = statusCode;
 			context.Items["ContentType"] = "text/html";
-			context.Items["Body"] = html;
+			context.Items["Body"] = context.GetStatusCodeHtmlBody(statusCode, message, type, correlationID, stack, showStack);
 
 			// set status code to raise status page middleware
 			context.Response.StatusCode = statusCode;
@@ -1137,13 +1152,7 @@ namespace net.vieapps.Components.Utility
 			if ("text/plain".Equals(contentType) && $"Error {statusCode}".Equals(bodystr))
 			{
 				contentType = "text/html";
-				bodystr = getHtmlBody?.Invoke(statusCode, context.HttpContext) ?? "<!DOCTYPE html>\r\n" +
-					$"<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n" +
-					$"<head><title>Error {statusCode}</title></head>\r\n<body>\r\n" +
-					$"<h1>HTTP {statusCode}</h1>\r\n" +
-					$"<hr/>\r\n" +
-					$"<div>Powered by VIEApps NGX v{Assembly.GetExecutingAssembly().GetVersion()}</div>\r\n" +
-					$"</body>\r\n</html>";
+				bodystr = getHtmlBody?.Invoke(statusCode, context.HttpContext) ?? context.HttpContext.GetStatusCodeHtmlBody(statusCode);
 			}
 
 			// prepare body
@@ -1164,7 +1173,7 @@ namespace net.vieapps.Components.Utility
 
 			// prepare headers
 			var headers = (Dictionary<string, string>)context.HttpContext.Items["Headers"] ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-			headers["Server"] = "VIEApps NGX";
+			headers["Server"] = AspNetCoreUtilityService.ServerName ?? "VIEApps NGX";
 
 			var cacheControl = (string)context.HttpContext.Items["CacheControl"] ?? "private, no-store, no-cache";
 			if (!string.IsNullOrWhiteSpace(cacheControl))
@@ -1197,7 +1206,8 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="app"></param>
 		/// <param name="getHtmlBody">The function to build the HTML body for displaying when no details of error is provided</param>
-		public static IApplicationBuilder UseStatusCodeHandler(this IApplicationBuilder app, Func<int, HttpContext, string> getHtmlBody = null) => app.UseStatusCodePages(context => context.ShowStatusPageAsync(getHtmlBody));
+		public static IApplicationBuilder UseStatusCodeHandler(this IApplicationBuilder app, Func<int, HttpContext, string> getHtmlBody = null)
+			=> app.UseStatusCodePages(context => context.ShowStatusPageAsync(getHtmlBody));
 		#endregion
 
 		#region Wrap a WebSocket connection of ASP.NET Core into WebSocket component
@@ -1214,27 +1224,23 @@ namespace net.vieapps.Components.Utility
 			{
 				var webSocket = await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
 				var remoteEndPoint = new IPEndPoint(context.Connection.RemoteIpAddress, context.Connection.RemotePort);
-				if (remoteEndPoint.Port == 0 && (context.Request.Headers["x-original-remote-endpoint"] != "" || context.Request.Headers["x-original-for"] != ""))
+				if (remoteEndPoint.Port == 0)
 					try
 					{
-						if (context.Request.Headers["x-original-remote-endpoint"] != "")
-						{
-							var uri = new Uri($"ws://{context.Request.Headers["x-original-remote-endpoint"]}");
-							remoteEndPoint = new IPEndPoint(IPAddress.Parse(uri.Host), uri.Port);
-						}
-						else
-						{
-							var uri = new Uri($"ws://{context.Request.Headers["x-original-for"]}");
-							remoteEndPoint = new IPEndPoint(context.Connection.RemoteIpAddress, uri.Port);
-						}
+						var uri = !string.IsNullOrWhiteSpace(context.Request.Headers["x-original-remote-endpoint"])
+							? new Uri($"ws://{context.Request.Headers["x-original-remote-endpoint"]}")
+							: !string.IsNullOrWhiteSpace(context.Request.Headers["cf-connecting-ip"])
+								? new Uri($"ws://{context.Request.Headers["cf-connecting-ip"]}:{new Uri($"ws://{context.Request.Headers["x-original-for"]}").Port}")
+								: new Uri($"ws://{context.Request.Headers["x-original-for"]}");
+						remoteEndPoint = new IPEndPoint(IPAddress.Parse(uri.Host), uri.Port);
 					}
 					catch { }
 				var localEndPoint = new IPEndPoint(context.Connection.LocalIpAddress, context.Connection.LocalPort);
 				var userAgent = context.Request.Headers["User-Agent"].First();
-				var urlReferrer = context.Request.Headers["Referrer"].First();
-				if (string.IsNullOrWhiteSpace(urlReferrer))
-					urlReferrer = context.Request.Headers["Origin"].First();
-				await websocket.WrapAsync(webSocket, context.GetRequestUri(), remoteEndPoint, localEndPoint, userAgent, urlReferrer).ConfigureAwait(false);
+				var urlReferer = context.Request.Headers["Referer"].First();
+				if (string.IsNullOrWhiteSpace(urlReferer))
+					urlReferer = context.Request.Headers["Origin"].First();
+				await websocket.WrapAsync(webSocket, context.GetRequestUri(), remoteEndPoint, localEndPoint, userAgent, urlReferer).ConfigureAwait(false);
 			}
 			else if (whenIsNotWebSocketRequestAsync != null)
 				await whenIsNotWebSocketRequestAsync(context).ConfigureAwait(false);
