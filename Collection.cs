@@ -21,7 +21,7 @@ namespace net.vieapps.Components.Utility
 	public static partial class AspNetCoreCollectionService
 	{
 
-		#region Working with sessions items & contexts' items
+		#region Working with sessions' items & contexts' items
 		/// <summary>
 		/// Adds an item into ASP.NET Core Session
 		/// </summary>
@@ -123,7 +123,7 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static Dictionary<string, string> ToDictionary(this IDictionary<string, StringValues> dictionary, Action<Dictionary<string, string>> onPreCompleted = null)
 		{
-			var dict = dictionary.ToDictionary(kvp => kvp.Key.ToLower(), kvp => kvp.Value.First());
+			var dict = dictionary.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(), StringComparer.OrdinalIgnoreCase);
 			onPreCompleted?.Invoke(dict);
 			return dict;
 		}

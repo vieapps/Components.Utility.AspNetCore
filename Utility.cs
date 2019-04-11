@@ -42,10 +42,11 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		public static string ServerName { get; set; } = "VIEApps NGX";
 
-		#region Extension helpers
 		internal static int BufferSize { get; } = 1024 * 16;
+
 		internal static long SmallStreamLength { get; } = 1024 * 1024 * 2;
 
+		#region Extensions for working with environments
 		/// <summary>
 		/// Gets max length of body request
 		/// </summary>
@@ -118,24 +119,57 @@ namespace net.vieapps.Components.Utility
 		}
 
 		/// <summary>
+		/// Gets the name of server to write into headers
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static string GetServerName(this HttpContext context)
+			=> string.IsNullOrWhiteSpace(AspNetCoreUtilityService.ServerName) ? "VIEApps NGX" : AspNetCoreUtilityService.ServerName;
+
+		/// <summary>
+		/// Gets the HTML body of a status code
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="statusCode"></param>
+		/// <returns></returns>
+		public static string GetHttpStatusCodeBody(this HttpContext context, int statusCode, string message = null, string type = null, string correlationID = null, string stack = null, bool showStack = true)
+		{
+			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
+			var html = "<!DOCTYPE html>\r\n" +
+				$"<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n" +
+				$"<head>\r\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>\r\n<title>Error {statusCode}</title>\r\n</head>\r\n<body>\r\n" +
+				$"<h1>HTTP {statusCode}{(string.IsNullOrWhiteSpace(message) ? "" : $" - {message.Replace("<", "&lt;").Replace(">", "&gt;")}")}</h1>\r\n";
+			if (!string.IsNullOrWhiteSpace(type))
+				html += $"<hr/>\r\n<div>Type: {type}</div>\r\n";
+			if (!string.IsNullOrWhiteSpace(stack) && showStack)
+				html += $"<div>Stack:</div>\r\n<blockquote>{stack.Replace("<", "&lt;").Replace(">", "&gt;").Replace("\n", "<br/>").Replace("\r", "").Replace("\t", "")}</blockquote>\r\n";
+			html += $"<hr/>\r\n"
+				+ $"<div> {(!string.IsNullOrWhiteSpace(correlationID) ? $"Correlation ID: {correlationID} - " : "")}"
+				+ $"Powered by {context.GetServerName()} v{Assembly.GetExecutingAssembly().GetVersion(false)}</div>\r\n"
+				+ "</body>\r\n</html>";
+			return html;
+		}
+
+		static FileExtensionContentTypeProvider MimeTypeProvider { get; set; }
+
+		/// <summary>
 		/// Gets the MIME type of a file
 		/// </summary>
 		/// <param name="filename"></param>
 		/// <returns></returns>
 		public static string GetMimeType(this string filename)
-			=> new FileExtensionContentTypeProvider().TryGetContentType(filename, out string staticMimeType)
-				? staticMimeType
-				: "text/plain";
+			=> (AspNetCoreUtilityService.MimeTypeProvider ?? (AspNetCoreUtilityService.MimeTypeProvider = new FileExtensionContentTypeProvider())).TryGetContentType(filename, out string mimeType)
+				? mimeType
+				: "application/octet-stream";
 
 		/// <summary>
 		/// Gets the MIME type of a file
 		/// </summary>
 		/// <param name="fileInfo"></param>
 		/// <returns></returns>
-		public static string GetMimeType(this FileInfo fileInfo) => fileInfo.Name.GetMimeType();
-		#endregion
+		public static string GetMimeType(this FileInfo fileInfo)
+			=> fileInfo.Name.GetMimeType();
 
-		#region Environment extensions
 		/// <summary>
 		/// Parses the query of an uri
 		/// </summary>
@@ -144,10 +178,19 @@ namespace net.vieapps.Components.Utility
 		/// <returns>The collection of key and value pair</returns>
 		public static Dictionary<string, string> ParseQuery(this Uri uri, Action<Dictionary<string, string>> onCompleted = null)
 		{
-			var query = QueryHelpers.ParseQuery(uri.Query).ToDictionary(kvp => kvp.Key, kvp => kvp.Value.First(), StringComparer.OrdinalIgnoreCase);
+			var query = QueryHelpers.ParseQuery(uri.Query).ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(), StringComparer.OrdinalIgnoreCase);
 			onCompleted?.Invoke(query);
 			return query;
 		}
+
+		/// <summary>
+		/// Parses the query of the request in this context
+		/// </summary>
+		/// <param name="context"></param>
+		/// /// <param name="onCompleted">Action to run on parsing completed</param>
+		/// <returns>The collection of key and value pair</returns>
+		public static Dictionary<string, string> ParseQuery(this HttpContext context, Action<Dictionary<string, string>> onCompleted = null)
+			=> context.GetRequestUri().ParseQuery(onCompleted);
 
 		/// <summary>
 		/// Gets the value of a header parameter
@@ -157,8 +200,8 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static string GetHeaderParameter(this HttpContext context, string name)
 		{
-			var value = !string.IsNullOrWhiteSpace(name) ? context.Request.Headers[name].First() : string.Empty;
-			return !string.IsNullOrWhiteSpace(value) ? value : null;
+			var value = string.IsNullOrWhiteSpace(name) ? string.Empty : context.Request.Headers[name].ToString();
+			return string.IsNullOrWhiteSpace(value) ? null : value;
 		}
 
 		/// <summary>
@@ -180,7 +223,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="name">The string that presents name of parameter want to get</param>
 		/// <returns></returns>
-		public static string GetParameter(this HttpContext context, string name) => context.GetHeaderParameter(name) ?? context.GetQueryParameter(name);
+		public static string GetParameter(this HttpContext context, string name)
+			=> context.GetHeaderParameter(name) ?? context.GetQueryParameter(name);
 
 		/// <summary>
 		/// Gets the original Uniform Resource Identifier (URI) of the request that was sent by the client
@@ -188,14 +232,15 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static Uri GetUri(this HttpContext context)
-			=> new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}{context.Request.PathBase}{context.Request.QueryString}");
+			=> new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.PathBase}{context.Request.Path}{context.Request.QueryString}");
 
 		/// <summary>
 		/// Gets the original Uniform Resource Identifier (URI) of the request that was sent by the client
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
-		public static Uri GetRequestUri(this HttpContext context) => context.GetUri();
+		public static Uri GetRequestUri(this HttpContext context)
+			=> context.GetUri();
 
 		/// <summary>
 		/// Gets the url of current uri that not include query-string
@@ -219,21 +264,24 @@ namespace net.vieapps.Components.Utility
 		/// <param name="toLower"></param>
 		/// <param name="useRelativeUrl"></param>
 		/// <returns></returns>
-		public static string GetRequestUrl(this HttpContext context, bool toLower = false, bool useRelativeUrl = false) => context.GetRequestUri().GetUrl(toLower, useRelativeUrl);
+		public static string GetRequestUrl(this HttpContext context, bool toLower = false, bool useRelativeUrl = false)
+			=> context.GetRequestUri().GetUrl(toLower, useRelativeUrl);
 
 		/// <summary>
 		/// Gets the host url (scheme, host and port - if not equals to default)
 		/// </summary>
 		/// <param name="uri"></param>
 		/// <returns></returns>
-		public static string GetHostUrl(this Uri uri) => uri.Scheme + "://" + uri.Host + (uri.Port != 80 && uri.Port != 443 ? $":{uri.Port}" : "");
+		public static string GetHostUrl(this Uri uri)
+			=> uri.Scheme + "://" + uri.Host + (uri.Port != 80 && uri.Port != 443 ? $":{uri.Port}" : "");
 
 		/// <summary>
 		/// Gets the host url (scheme, host and port - if not equals to default)
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
-		public static string GetHostUrl(this HttpContext context) => context.GetRequestUri().GetHostUrl();
+		public static string GetHostUrl(this HttpContext context)
+			=> context.GetRequestUri().GetHostUrl();
 
 		/// <summary>
 		/// Gets path segments of this uri
@@ -255,28 +303,70 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="toLower"></param>
 		/// <returns></returns>
-		public static string[] GetRequestPathSegments(this HttpContext context, bool toLower = false) => context.GetRequestUri().GetRequestPathSegments(toLower);
+		public static string[] GetRequestPathSegments(this HttpContext context, bool toLower = false)
+			=> context.GetRequestUri().GetRequestPathSegments(toLower);
 
 		/// <summary>
-		/// Gets the HTML body of a status code
+		/// Gets the refer Uniform Resource Identifier (URI) of the request that was sent by the client
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="statusCode"></param>
 		/// <returns></returns>
-		public static string GetStatusCodeHtmlBody(this HttpContext context, int statusCode, string message = null, string type = null, string correlationID = null, string stack = null, bool showStack = true)
+		public static Uri GetReferUri(this HttpContext context)
 		{
-			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
-			var html = "<!DOCTYPE html>\r\n" +
-				$"<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n" +
-				$"<head><title>Error {statusCode}</title></head>\r\n<body>\r\n" +
-				$"<h1>HTTP {statusCode}{(string.IsNullOrWhiteSpace(message) ? "" : $" - {message.Replace("<", "&lt;").Replace(">", "&gt;")}")}</h1>\r\n" +
-				$"<hr/>\r\n";
-			if (!string.IsNullOrWhiteSpace(type))
-				html += $"<div>Type: {type}</div>\r\n";
-			if (!string.IsNullOrWhiteSpace(stack) && showStack)
-				html += $"<div>Stack:</div>\r\n<blockquote>{stack.Replace("<", "&lt;").Replace(">", "&gt;").Replace("\n", "<br/>").Replace("\r", "").Replace("\t", "")}</blockquote>\r\n";
-			html += $"<hr/>\r\n" + $"<div> {(!string.IsNullOrWhiteSpace(correlationID) ? $"Correlation ID: {correlationID} - " : "")}Powered by {AspNetCoreUtilityService.ServerName ?? "VIEApps NGX"} v{Assembly.GetExecutingAssembly().GetVersion(false)}</div>\r\n</body>\r\n</html>";
-			return html;
+			var referer = context.Request.Headers["Referer"].ToString();
+			return string.IsNullOrWhiteSpace(referer) ? null : new Uri(referer);
+		}
+
+		/// <summary>
+		/// Gets the origin Uniform Resource Identifier (URI) of the request that was sent by the client
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static Uri GetOriginUri(this HttpContext context)
+		{
+			var origin = context.Request.Headers["Origin"].ToString();
+			return string.IsNullOrWhiteSpace(origin) ? null : new Uri(origin);
+		}
+
+		/// <summary>
+		/// Gets the user-agent string of the request that was sent by the client
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static string GetUserAgent(this HttpContext context)
+		{
+			var userAgent = context.Request.Headers["User-Agent"].ToString();
+			return string.IsNullOrWhiteSpace(userAgent) ? "" : userAgent;
+		}
+
+		/// <summary>
+		/// Gets the local endpoint
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static IPEndPoint GetLocalEndPoint(this HttpContext context)
+			=> new IPEndPoint(context.Connection.LocalIpAddress, context.Connection.LocalPort);
+
+		/// <summary>
+		/// Gets the remote endpoint
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static IPEndPoint GetRemoteEndPoint(this HttpContext context)
+		{
+			var endpoint = new IPEndPoint(context.Connection.RemoteIpAddress, context.Connection.RemotePort);
+			if (endpoint.Port == 0)
+				try
+				{
+					var uri = !string.IsNullOrWhiteSpace(context.Request.Headers["x-original-remote-endpoint"])
+						? new Uri($"https://{context.Request.Headers["x-original-remote-endpoint"]}")
+						: !string.IsNullOrWhiteSpace(context.Request.Headers["cf-connecting-ip"])
+							? new Uri($"https://{context.Request.Headers["cf-connecting-ip"]}:{new Uri($"https://{context.Request.Headers["x-original-for"]}").Port}")
+							: new Uri($"https://{context.Request.Headers["x-original-for"]}");
+					endpoint = new IPEndPoint(IPAddress.Parse(uri.Host), uri.Port);
+				}
+				catch { }
+			return endpoint;
 		}
 		#endregion
 
@@ -293,7 +383,7 @@ namespace net.vieapps.Components.Utility
 			context.Response.StatusCode = statusCode;
 
 			headers?.ForEach(kvp => context.Response.Headers[kvp.Key] = kvp.Value);
-			context.Response.Headers["Server"] = AspNetCoreUtilityService.ServerName ?? "VIEApps NGX";
+			context.Response.Headers["Server"] = context.GetServerName();
 			if (context.Items.ContainsKey("PipelineStopwatch") && context.Items["PipelineStopwatch"] is Stopwatch stopwatch)
 			{
 				stopwatch.Stop();
@@ -374,7 +464,7 @@ namespace net.vieapps.Components.Utility
 				context.Items["CacheControl"] = cacheControl;
 
 			// update
-			context.SetResponseHeaders(statusCode);
+			context.SetResponseHeaders(statusCode, headers);
 		}
 		#endregion
 
@@ -383,7 +473,8 @@ namespace net.vieapps.Components.Utility
 		/// Sends all currently buffered output to the client
 		/// </summary>
 		/// <param name="context"></param>
-		public static void Flush(this HttpContext context) => context.Response.Body.Flush();
+		public static void Flush(this HttpContext context)
+			=> context.Response.Body.Flush();
 
 		/// <summary>
 		/// Asynchronously sends all currently buffered output to the client
@@ -399,17 +490,29 @@ namespace net.vieapps.Components.Utility
 		}
 
 		/// <summary>
-		/// Redirects the response by send the status code (302 - Redirect) to client
+		/// Redirects the response by send the redirect status code (301 or 302) to client
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="location"></param>
-		public static void Redirect(this HttpContext context, string location)
+		/// <param name="location">The location to redirect to - must be encoded</param>
+		/// <param name="redirectPermanently">true to use 301 (Moved Permanently) instead of 302 (Redirect Temporary)</param>
+		public static void Redirect(this HttpContext context, string location, bool redirectPermanently = false)
 		{
-			if (!string.IsNullOrWhiteSpace(location))
-				context.SetResponseHeaders((int)HttpStatusCode.Redirect, null, 0, "", null, new Dictionary<string, string>
+			if (string.IsNullOrWhiteSpace(location))
+				return;
+
+			var uri = new Uri(location);
+			var segments = uri.GetRequestPathSegments();
+			var path = "/" + segments.Select(segment => segment.UrlDecode().UrlEncode()).Join("/") + (segments.Length > 0 && location.EndsWith("/") ? "/" : "");
+			var query = uri.ParseQuery().Select(kvp => kvp.Key + "=" + kvp.Value.UrlDecode().UrlEncode()).Join("&");
+
+			context.SetResponseHeaders(
+				redirectPermanently ? (int)HttpStatusCode.MovedPermanently : (int)HttpStatusCode.Redirect,
+				new Dictionary<string, string>
 				{
-					{ "Location", location }
-				});
+					{ "Location", uri.Scheme + "://" + uri.Host + (uri.Port != 80 && uri.Port != 443 ? $":{uri.Port}" : "") + path + (string.IsNullOrWhiteSpace(query) ? "" : "?" + query) }
+				},
+				true
+			);
 		}
 
 		/// <summary>
@@ -418,13 +521,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="location"></param>
 		public static void RedirectPermanently(this HttpContext context, string location)
-		{
-			if (!string.IsNullOrWhiteSpace(location))
-				context.SetResponseHeaders((int)HttpStatusCode.MovedPermanently, null, 0, "", null, new Dictionary<string, string>
-				{
-					{ "Location", location }
-				});
-		}
+			=> context.Redirect(location, true);
 		#endregion
 
 		#region Read data from request
@@ -584,7 +681,7 @@ namespace net.vieapps.Components.Utility
 			if (!string.IsNullOrWhiteSpace(context.Request.Headers["Range"].First()))
 			{
 				var requestedRange = context.Request.Headers["Range"].First();
-				var range = requestedRange.Split(new char[] { '=', '-' });
+				var range = requestedRange.Split(new[] { '=', '-' });
 
 				startBytes = range[1].CastAs<long>();
 				if (startBytes >= totalBytes)
@@ -1020,7 +1117,7 @@ namespace net.vieapps.Components.Utility
 			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
 			context.Items["StatusCode"] = statusCode;
 			context.Items["ContentType"] = "text/html";
-			context.Items["Body"] = context.GetStatusCodeHtmlBody(statusCode, message, type, correlationID, stack, showStack);
+			context.Items["Body"] = context.GetHttpStatusCodeBody(statusCode, message, type, correlationID, stack, showStack);
 
 			// set status code to raise status page middleware
 			context.Response.StatusCode = statusCode;
@@ -1147,18 +1244,18 @@ namespace net.vieapps.Components.Utility
 				: context.HttpContext.Response.StatusCode;
 
 			// prepare content-type & body string
-			var contentType = (string)context.HttpContext.Items["ContentType"] ?? "text/plain";
-			var bodystr = (string)context.HttpContext.Items["Body"] ?? $"Error {statusCode}";
+			var contentType = context.HttpContext.GetItem<string>("ContentType") ?? "text/plain";
+			var bodystr = context.HttpContext.GetItem<string>("Body") ?? $"Error {statusCode}";
 			if ("text/plain".Equals(contentType) && $"Error {statusCode}".Equals(bodystr))
 			{
 				contentType = "text/html";
-				bodystr = getHtmlBody?.Invoke(statusCode, context.HttpContext) ?? context.HttpContext.GetStatusCodeHtmlBody(statusCode);
+				bodystr = getHtmlBody?.Invoke(statusCode, context.HttpContext) ?? context.HttpContext.GetHttpStatusCodeBody(statusCode);
 			}
 
 			// prepare body
 			var body = bodystr.ToBytes();
 
-			var encoding = context.HttpContext.Request.Headers["Accept-Encoding"].Join(", ");
+			var encoding = context.HttpContext.Request.Headers["Accept-Encoding"].ToString() ?? "";
 			if (body.Length < 1)
 				encoding = null;
 			else if (encoding.IsContains("gzip"))
@@ -1172,12 +1269,9 @@ namespace net.vieapps.Components.Utility
 				body = body.Compress(encoding);
 
 			// prepare headers
-			var headers = (Dictionary<string, string>)context.HttpContext.Items["Headers"] ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-			headers["Server"] = AspNetCoreUtilityService.ServerName ?? "VIEApps NGX";
-
-			var cacheControl = (string)context.HttpContext.Items["CacheControl"] ?? "private, no-store, no-cache";
-			if (!string.IsNullOrWhiteSpace(cacheControl))
-				headers["Cache-Control"] = cacheControl;
+			var headers = context.HttpContext.GetItem<Dictionary<string, string>>("Headers") ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			headers["Server"] = context.HttpContext.GetServerName();
+			headers["Cache-Control"] = context.HttpContext.GetItem<string>("CacheControl") ?? "private, no-store, no-cache";
 
 			if (body.Length > 0)
 			{
@@ -1221,27 +1315,7 @@ namespace net.vieapps.Components.Utility
 		public static async Task WrapAsync(this WebSocket websocket, HttpContext context, Func<HttpContext, Task> whenIsNotWebSocketRequestAsync = null)
 		{
 			if (context.WebSockets.IsWebSocketRequest)
-			{
-				var webSocket = await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
-				var remoteEndPoint = new IPEndPoint(context.Connection.RemoteIpAddress, context.Connection.RemotePort);
-				if (remoteEndPoint.Port == 0)
-					try
-					{
-						var uri = !string.IsNullOrWhiteSpace(context.Request.Headers["x-original-remote-endpoint"])
-							? new Uri($"ws://{context.Request.Headers["x-original-remote-endpoint"]}")
-							: !string.IsNullOrWhiteSpace(context.Request.Headers["cf-connecting-ip"])
-								? new Uri($"ws://{context.Request.Headers["cf-connecting-ip"]}:{new Uri($"ws://{context.Request.Headers["x-original-for"]}").Port}")
-								: new Uri($"ws://{context.Request.Headers["x-original-for"]}");
-						remoteEndPoint = new IPEndPoint(IPAddress.Parse(uri.Host), uri.Port);
-					}
-					catch { }
-				var localEndPoint = new IPEndPoint(context.Connection.LocalIpAddress, context.Connection.LocalPort);
-				var userAgent = context.Request.Headers["User-Agent"].First();
-				var urlReferer = context.Request.Headers["Referer"].First();
-				if (string.IsNullOrWhiteSpace(urlReferer))
-					urlReferer = context.Request.Headers["Origin"].First();
-				await websocket.WrapAsync(webSocket, context.GetRequestUri(), remoteEndPoint, localEndPoint, userAgent, urlReferer).ConfigureAwait(false);
-			}
+				await websocket.WrapAsync(await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false), context.GetRequestUri(), context.GetRemoteEndPoint(), context.GetLocalEndPoint(), context.Request.Headers.ToDictionary()).ConfigureAwait(false);
 			else if (whenIsNotWebSocketRequestAsync != null)
 				await whenIsNotWebSocketRequestAsync(context).ConfigureAwait(false);
 		}
