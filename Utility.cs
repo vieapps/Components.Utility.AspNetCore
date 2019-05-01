@@ -655,14 +655,6 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static async Task WriteAsync(this HttpContext context, Stream stream, Dictionary<string, string> headers, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			// validate whether the file is too large
-			var totalBytes = stream.Length;
-			if (totalBytes > context.GetBodyRequestMaxLength())
-			{
-				context.SetResponseHeaders((int)HttpStatusCode.RequestEntityTooLarge, null, 0, "private", null);
-				return;
-			}
-
 			// check ETag for supporting resumeable downloaders
 			var eTag = headers != null && headers.ContainsKey("ETag") ? headers["ETag"] : null;
 			if (!string.IsNullOrWhiteSpace(eTag))
@@ -677,6 +669,7 @@ namespace net.vieapps.Components.Utility
 
 			// prepare position for flushing as partial blocks
 			var flushAsPartialContent = false;
+			var totalBytes = stream.Length;
 			long startBytes = 0, endBytes = totalBytes - 1;
 			if (!string.IsNullOrWhiteSpace(context.Request.Headers["Range"].First()))
 			{
