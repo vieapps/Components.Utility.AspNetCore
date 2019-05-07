@@ -48,19 +48,6 @@ namespace net.vieapps.Components.Utility
 
 		#region Extensions for working with environments
 		/// <summary>
-		/// Gets max length of body request
-		/// </summary>
-		/// <param name="context"></param>
-		/// <returns></returns>
-		public static long GetBodyRequestMaxLength(this HttpContext context)
-		{
-			var max = context.Features.Get<IHttpMaxRequestBodySizeFeature>().MaxRequestBodySize;
-			return max != null
-				? max.Value
-				: Int64.MaxValue;
-		}
-
-		/// <summary>
 		/// Gets the request ETag
 		/// </summary>
 		/// <param name="context"></param>
@@ -144,7 +131,7 @@ namespace net.vieapps.Components.Utility
 			if (!string.IsNullOrWhiteSpace(stack) && showStack)
 				html += $"<div>Stack:</div>\r\n<blockquote>{stack.Replace("<", "&lt;").Replace(">", "&gt;").Replace("\n", "<br/>").Replace("\r", "").Replace("\t", "")}</blockquote>\r\n";
 			html += $"<hr/>\r\n"
-				+ $"<div> {(!string.IsNullOrWhiteSpace(correlationID) ? $"Correlation ID: {correlationID} - " : "")}"
+				+ $"<div>{(!string.IsNullOrWhiteSpace(correlationID) ? $"Correlation ID: {correlationID} - " : "")}"
 				+ $"Powered by {context.GetServerName()} v{Assembly.GetExecutingAssembly().GetVersion(false)}</div>\r\n"
 				+ "</body>\r\n</html>";
 			return html;
@@ -502,7 +489,7 @@ namespace net.vieapps.Components.Utility
 
 			var uri = new Uri(location);
 			var segments = uri.GetRequestPathSegments();
-			var path = "/" + segments.Select(segment => segment.UrlDecode().UrlEncode()).Join("/") + (segments.Length > 0 && location.EndsWith("/") ? "/" : "");
+			var path = (segments.Length > 0 ? "/" : "") + segments.Select(segment => segment.UrlDecode().UrlEncode()).Join("/") + (segments.Length > 0 && location.EndsWith("/") ? "/" : "");
 			var query = uri.ParseQuery().Select(kvp => kvp.Key + "=" + kvp.Value.UrlDecode().UrlEncode()).Join("&");
 
 			context.SetResponseHeaders(
