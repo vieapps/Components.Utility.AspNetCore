@@ -42,9 +42,15 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		public static string ServerName { get; set; } = "VIEApps NGX";
 
-		internal static int BufferSize { get; } = 1024 * 16;
+		/// <summary>
+		/// Gets the size for buffering when read/write a stream
+		/// </summary>
+		public static int BufferSize { get; } = 1024 * 16;
 
-		internal static long SmallStreamLength { get; } = 1024 * 1024 * 2;
+		/// <summary>
+		/// Gets the max-size of a small stream
+		/// </summary>
+		public static long SmallStreamLength { get; } = 1024 * 512;
 
 		#region Extensions for working with environments
 		/// <summary>
@@ -367,16 +373,27 @@ namespace net.vieapps.Components.Utility
 		/// <param name="tryWriteEmptyResponse">true to try to write empty response</param>
 		public static void SetResponseHeaders(this HttpContext context, int statusCode, Dictionary<string, string> headers = null, bool tryWriteEmptyResponse = false)
 		{
-			context.Response.StatusCode = statusCode;
-
-			headers?.ForEach(kvp => context.Response.Headers[kvp.Key] = kvp.Value);
-			context.Response.Headers["Server"] = context.GetServerName();
+			// prepare
+			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
+			{
+				["Server"] = context.GetServerName()
+			};
 			if (context.Items.ContainsKey("PipelineStopwatch") && context.Items["PipelineStopwatch"] is Stopwatch stopwatch)
 			{
 				stopwatch.Stop();
-				context.Response.Headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
+				headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
 			}
 
+			// update into context to use at status page middleware
+			context.Items["StatusCode"] = statusCode;
+			context.Items["Body"] = "";
+			context.Items["Headers"] = headers;
+			if (headers.TryGetValue("Cache-Control", out var cacheControl))
+				context.Items["CacheControl"] = cacheControl;
+
+			// update headers
+			headers.ForEach(kvp => context.Response.Headers[kvp.Key] = kvp.Value);
+			context.Response.StatusCode = statusCode;
 			if (tryWriteEmptyResponse)
 				context.Write(new byte[0]);
 		}
@@ -437,18 +454,14 @@ namespace net.vieapps.Components.Utility
 			if (!string.IsNullOrWhiteSpace(eTag))
 				headers["ETag"] = eTag;
 
-			if (!string.IsNullOrWhiteSpace(correlationID))
-				headers["X-Correlation-ID"] = correlationID;
-
 			if (lastModified > 0)
 				headers["Last-Modified"] = lastModified.FromUnixTimestamp().ToHttpString();
 
-			// update into context to use at status page middleware
-			context.Items["StatusCode"] = statusCode;
-			context.Items["Body"] = "";
-			context.Items["Headers"] = headers;
-			if (cacheControl != null)
-				context.Items["CacheControl"] = cacheControl;
+			if (!string.IsNullOrWhiteSpace(cacheControl))
+				headers["Cache-Control"] = cacheControl;
+
+			if (!string.IsNullOrWhiteSpace(correlationID))
+				headers["X-Correlation-ID"] = correlationID;
 
 			// update
 			context.SetResponseHeaders(statusCode, headers);
@@ -537,15 +550,18 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static async Task<byte[]> ReadAsync(this HttpContext context, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			var data = new byte[0];
-			var buffer = new byte[TextFileReader.BufferSize];
-			var read = await context.Request.Body.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
-			while (read > 0)
+			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
 			{
-				data = data.Concat(buffer.Take(0, read));
-				read = await context.Request.Body.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
+				var data = new byte[0];
+				var buffer = new byte[TextFileReader.BufferSize];
+				var read = await context.Request.Body.ReadAsync(buffer, 0, buffer.Length, cts.Token).ConfigureAwait(false);
+				while (read > 0)
+				{
+					data = data.Concat(buffer.Take(0, read));
+					read = await context.Request.Body.ReadAsync(buffer, 0, buffer.Length, cts.Token).ConfigureAwait(false);
+				}
+				return data;
 			}
-			return data;
 		}
 
 		/// <summary>
@@ -568,70 +584,15 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static async Task<string> ReadTextAsync(this HttpContext context, CancellationToken cancellationToken = default(CancellationToken))
 		{
+			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
 			using (var reader = new StreamReader(context.Request.Body))
 			{
-				return await reader.ReadToEndAsync().WithCancellationToken(cancellationToken).ConfigureAwait(false);
+				return await reader.ReadToEndAsync().WithCancellationToken(cts.Token).ConfigureAwait(false);
 			}
 		}
 		#endregion
 
-		#region Write binary data to the response body
-		/// <summary>
-		/// Writes binary data to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="buffer"></param>
-		/// <param name="offset"></param>
-		/// <param name="count"></param>
-		public static void Write(this HttpContext context, byte[] buffer, int offset = 0, int count = 0) 
-			=> context.Response.Body.Write(buffer, offset > -1 ? offset : 0, count > 0 ? count : buffer.Length);
-
-		/// <summary>
-		/// Writes binary data to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="buffer"></param>
-		/// <returns></returns>
-		public static void Write(this HttpContext context, ArraySegment<byte> buffer) 
-			=> context.Response.Body.Write(buffer.Array, buffer.Offset, buffer.Count);
-
-		/// <summary>
-		/// Writes binary data to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="buffer"></param>
-		/// <param name="offset"></param>
-		/// <param name="count"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, byte[] buffer, int offset = 0, int count = 0, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
-			{
-				await context.Response.Body.WriteAsync(buffer, offset > -1 ? offset : 0, count > 0 ? count : buffer.Length, cts.Token).ConfigureAwait(false);
-			}
-		}
-
-		/// <summary>
-		/// Writes binary data to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="buffer"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, byte[] buffer, CancellationToken cancellationToken)
-			=> context.WriteAsync(buffer, 0, 0, cancellationToken);
-
-		/// <summary>
-		/// Writes binary data to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="buffer"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, ArraySegment<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
-			=> context.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken);
-
+		#region Write a stream to the response body
 		/// <summary>
 		/// Writes the stream to the output response body
 		/// </summary>
@@ -643,7 +604,7 @@ namespace net.vieapps.Components.Utility
 		public static async Task WriteAsync(this HttpContext context, Stream stream, Dictionary<string, string> headers, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			// check ETag for supporting resumeable downloaders
-			var eTag = headers != null && headers.ContainsKey("ETag") ? headers["ETag"] : null;
+			var eTag = headers?.FirstOrDefault(kvp => kvp.Key.IsEquals("ETag")).Value;
 			if (!string.IsNullOrWhiteSpace(eTag))
 			{
 				var requestETag = context.GetRequestETag();
@@ -688,7 +649,7 @@ namespace net.vieapps.Components.Utility
 			// update headers
 			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
 			{
-				{ "Content-Length", $"{(endBytes - startBytes) + 1}" },
+				["Content-Length"] = $"{(endBytes - startBytes) + 1}"
 			};
 
 			if (flushAsPartialContent && startBytes > -1)
@@ -697,74 +658,43 @@ namespace net.vieapps.Components.Utility
 			if (!string.IsNullOrWhiteSpace(eTag))
 				headers["Accept-Ranges"] = "bytes";
 
-			try
-			{
-				context.SetResponseHeaders(flushAsPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers, context.Request.Method.IsEquals("HEAD"));
-				await context.FlushAsync(cancellationToken).ConfigureAwait(false);
-				if (context.Request.Method.IsEquals("HEAD"))
-					return;
-			}
-			catch (OperationCanceledException)
-			{
+			context.SetResponseHeaders(flushAsPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers, context.Request.Method.IsEquals("HEAD"));
+			await context.FlushAsync(cancellationToken).ConfigureAwait(false);
+			if (context.Request.Method.IsEquals("HEAD"))
 				return;
-			}
-			catch (Exception)
+
+			// write the streamto output
+			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
 			{
-				throw;
-			}
+				// small stream
+				if (!flushAsPartialContent && totalBytes <= AspNetCoreUtilityService.SmallStreamLength)
+					await stream.CopyToAsync(context.Response.Body, AspNetCoreUtilityService.BufferSize, cts.Token).ConfigureAwait(false);
 
-			// write small stream
-			if (!flushAsPartialContent && totalBytes <= AspNetCoreUtilityService.SmallStreamLength)
-				try
+				// large stream
+				else
 				{
-					using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
+					// jump to requested position
+					stream.Seek(startBytes > 0 ? startBytes : 0, SeekOrigin.Begin);
+
+					// read and flush stream data to response stream
+					var size = AspNetCoreUtilityService.BufferSize;
+					if (size > (endBytes - startBytes))
+						size = (int)(endBytes - startBytes) + 1;
+
+					var buffer = new byte[size];
+					var total = (int)Math.Ceiling((endBytes - startBytes + 0.0) / size);
+					var count = 0;
+					while (count < total)
 					{
-						await stream.CopyToAsync(context.Response.Body, AspNetCoreUtilityService.BufferSize, cts.Token).ConfigureAwait(false);
-					}
-				}
-				catch (OperationCanceledException)
-				{
-					return;
-				}
-				catch (Exception)
-				{
-					throw;
-				}
-
-			// write large stream
-			else
-			{
-				// jump to requested position
-				stream.Seek(startBytes > 0 ? startBytes : 0, SeekOrigin.Begin);
-
-				// read and flush stream data to response stream
-				var size = AspNetCoreUtilityService.BufferSize;
-				if (size > (endBytes - startBytes))
-					size = (int)(endBytes - startBytes) + 1;
-
-				var buffer = new byte[size];
-				var total = (int)Math.Ceiling((endBytes - startBytes + 0.0) / size);
-				var count = 0;
-
-				while (count < total)
-					try
-					{
-						var read = await stream.ReadAsync(buffer, 0, size, cancellationToken).ConfigureAwait(false);
+						var read = await stream.ReadAsync(buffer, 0, size, cts.Token).ConfigureAwait(false);
 						if (read > 0)
 						{
-							await context.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
-							await context.FlushAsync(cancellationToken).ConfigureAwait(false);
+							await context.WriteAsync(buffer, 0, read, cts.Token).ConfigureAwait(false);
+							await context.FlushAsync(cts.Token).ConfigureAwait(false);
 						}
 						count++;
 					}
-					catch (OperationCanceledException)
-					{
-						return;
-					}
-					catch (Exception)
-					{
-						throw;
-					}
+				}
 			}
 		}
 
@@ -829,6 +759,140 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, Stream stream, string contentType, string contentDisposition, string eTag, long lastModified, string cacheControl, TimeSpan expires, CancellationToken cancellationToken = default(CancellationToken))
 			=> context.WriteAsync(stream, contentType, contentDisposition, eTag, lastModified, cacheControl, expires, null, null, cancellationToken);
+		#endregion
+
+		#region Write a file to the response body
+		/// <summary>
+		/// Writes the content of a file (binary) to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="fileInfo">The information of the file</param>
+		/// <param name="contentType">The MIME type</param>
+		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
+		/// <param name="eTag">The entity tag</param>
+		/// <param name="correlationID">The correlation identity</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static async Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition = null, string eTag = null, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		{
+			if (fileInfo == null || !fileInfo.Exists)
+				throw new FileNotFoundException($"Not found{(fileInfo != null ? $" [{fileInfo.Name}]" : "")}");
+
+			using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true))
+			{
+				await context.WriteAsync(stream, contentType, contentDisposition, eTag, fileInfo.LastWriteTime.ToUnixTimestamp(), "public", TimeSpan.FromDays(7), null, correlationID, cancellationToken).ConfigureAwait(false);
+			}
+		}
+
+		/// <summary>
+		/// Writes the content of a file (binary) to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="fileInfo">The information of the file</param>
+		/// <param name="contentType">The MIME type</param>
+		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
+		/// <param name="eTag">The entity tag</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition, string eTag = null, CancellationToken cancellationToken = default(CancellationToken))
+			=> context.WriteAsync(fileInfo, contentType, contentDisposition, eTag, null, cancellationToken);
+
+		/// <summary>
+		/// Writes the content of a file (binary) to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="fileInfo">The information of the file</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, CancellationToken cancellationToken = default(CancellationToken))
+			=> context.WriteAsync(fileInfo, null, null, null, cancellationToken);
+		#endregion
+
+		#region Write a data-set as Excel document to the response body
+		/// <summary>
+		/// Writes a data-set as Excel document to to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="dataSet"></param>
+		/// <param name="filename"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static async Task WriteAsExcelDocumentAsync(this HttpContext context, DataSet dataSet, string filename = null, CancellationToken cancellationToken = default(CancellationToken))
+		{
+			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
+			using (var stream = await dataSet.SaveAsExcelAsync(cts.Token).ConfigureAwait(false))
+			{
+				await context.WriteAsync(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename ?? $"{dataSet.Tables[0].TableName}.xlsx", null, 0, null, default(TimeSpan), null, null, cts.Token).ConfigureAwait(false);
+			}
+		}
+
+		/// <summary>
+		/// Writes a data-set as Excel document to HTTP output stream directly
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="dataSet"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static Task WriteAsExcelDocumentAsync(this HttpContext context, DataSet dataSet, CancellationToken cancellationToken = default(CancellationToken)) 
+			=> context.WriteAsExcelDocumentAsync(dataSet, null, cancellationToken);
+		#endregion
+
+		#region Write binary data to the response body
+		/// <summary>
+		/// Writes binary data to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="buffer"></param>
+		/// <param name="offset"></param>
+		/// <param name="count"></param>
+		public static void Write(this HttpContext context, byte[] buffer, int offset = 0, int count = 0)
+			=> context.Response.Body.Write(buffer, offset > -1 ? offset : 0, count > 0 ? count : buffer.Length);
+
+		/// <summary>
+		/// Writes binary data to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="buffer"></param>
+		/// <returns></returns>
+		public static void Write(this HttpContext context, ArraySegment<byte> buffer)
+			=> context.Response.Body.Write(buffer.Array, buffer.Offset, buffer.Count);
+
+		/// <summary>
+		/// Writes binary data to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="buffer"></param>
+		/// <param name="offset"></param>
+		/// <param name="count"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static async Task WriteAsync(this HttpContext context, byte[] buffer, int offset = 0, int count = 0, CancellationToken cancellationToken = default(CancellationToken))
+		{
+			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
+			{
+				await context.Response.Body.WriteAsync(buffer, offset > -1 ? offset : 0, count > 0 ? count : buffer.Length, cts.Token).ConfigureAwait(false);
+			}
+		}
+
+		/// <summary>
+		/// Writes binary data to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="buffer"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, byte[] buffer, CancellationToken cancellationToken)
+			=> context.WriteAsync(buffer, 0, 0, cancellationToken);
+
+		/// <summary>
+		/// Writes binary data to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="buffer"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, ArraySegment<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
+			=> context.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken);
 
 		/// <summary>
 		/// Writes binary data to the response body
@@ -868,69 +932,6 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, byte[] buffer, string contentType, string contentDisposition, string eTag, long lastModified, string cacheControl, TimeSpan expires, CancellationToken cancellationToken = default(CancellationToken))
 			=> context.WriteAsync(buffer, contentType, contentDisposition, eTag, lastModified, cacheControl, expires, null, null, cancellationToken);
-
-		/// <summary>
-		/// Writes the content of a file (binary) to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="fileInfo">The information of the file</param>
-		/// <param name="contentType">The MIME type</param>
-		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
-		/// <param name="eTag">The entity tag</param>
-		/// <param name="correlationID">The correlation identity</param>
-		/// <param name="cancellationToken">The cancellation token</param>
-		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition = null, string eTag = null, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			if (fileInfo == null || !fileInfo.Exists)
-				throw new FileNotFoundException("Not found" + (fileInfo != null ? " [" + fileInfo.Name + "]" : ""));
-
-			using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, TextFileReader.BufferSize, true))
-			{
-				await context.WriteAsync(stream, contentType, contentDisposition, eTag, fileInfo.LastWriteTime.ToUnixTimestamp(), "public", TimeSpan.FromDays(7), null, correlationID, cancellationToken).ConfigureAwait(false);
-			}
-		}
-
-		/// <summary>
-		/// Writes the content of a file (binary) to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="fileInfo">The information of the file</param>
-		/// <param name="contentType">The MIME type</param>
-		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
-		/// <param name="eTag">The entity tag</param>
-		/// <param name="cancellationToken">The cancellation token</param>
-		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition, string eTag = null, CancellationToken cancellationToken = default(CancellationToken))
-			=> context.WriteAsync(fileInfo, contentType, contentDisposition, eTag,null, cancellationToken);
-		#endregion
-
-		#region Write a data-set as Excel document to the response body
-		/// <summary>
-		/// Writes a data-set as Excel document to to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="dataSet"></param>
-		/// <param name="filename"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static async Task WriteAsExcelDocumentAsync(this HttpContext context, DataSet dataSet, string filename = null, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			using (var stream = await dataSet.SaveAsExcelAsync(cancellationToken).ConfigureAwait(false))
-			{
-				await context.WriteAsync(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename = filename ?? dataSet.Tables[0].TableName + ".xlsx", null, 0, null, default(TimeSpan), null, null, cancellationToken).ConfigureAwait(false);
-			}
-		}
-
-		/// <summary>
-		/// Writes a data-set as Excel document to HTTP output stream directly
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="dataSet"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static Task WriteAsExcelDocumentAsync(this HttpContext context, DataSet dataSet, CancellationToken cancellationToken = default(CancellationToken)) 
-			=> context.WriteAsExcelDocumentAsync(dataSet, null, cancellationToken);
 		#endregion
 
 		#region Write text data to the response body
@@ -940,7 +941,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="text"></param>
 		/// <param name="encoding"></param>
-		public static void Write(this HttpContext context, string text, Encoding encoding = null) => context.Write(text.ToBytes(encoding));
+		public static void Write(this HttpContext context, string text, Encoding encoding = null)
+			=> context.Write(text.ToBytes(encoding));
 
 		/// <summary>
 		/// Writes the given text to the response body
