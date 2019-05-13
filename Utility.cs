@@ -43,14 +43,9 @@ namespace net.vieapps.Components.Utility
 		public static string ServerName { get; set; } = "VIEApps NGX";
 
 		/// <summary>
-		/// Gets the size for buffering when read/write a stream
+		/// Gets the size for buffering when read/write a stream (default is 64K)
 		/// </summary>
-		public static int BufferSize { get; } = 1024 * 16;
-
-		/// <summary>
-		/// Gets the max-size of a small stream
-		/// </summary>
-		public static long SmallStreamLength { get; } = 1024 * 512;
+		public static int BufferSize { get; } = 1024 * 64;
 
 		#region Extensions for working with environments
 		/// <summary>
@@ -660,21 +655,14 @@ namespace net.vieapps.Components.Utility
 
 			context.SetResponseHeaders(flushAsPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers, context.Request.Method.IsEquals("HEAD"));
 			await context.FlushAsync(cancellationToken).ConfigureAwait(false);
-			if (context.Request.Method.IsEquals("HEAD"))
-				return;
 
 			// write the streamto output
-			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
-			{
-				// small stream
-				if (!flushAsPartialContent && totalBytes <= AspNetCoreUtilityService.SmallStreamLength)
-					await stream.CopyToAsync(context.Response.Body, AspNetCoreUtilityService.BufferSize, cts.Token).ConfigureAwait(false);
-
-				// large stream
-				else
+			if (context.Request.Method.IsEquals("GET"))
+				using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
 				{
 					// jump to requested position
-					stream.Seek(startBytes > 0 ? startBytes : 0, SeekOrigin.Begin);
+					if (flushAsPartialContent)
+						stream.Seek(startBytes > 0 ? startBytes : 0, SeekOrigin.Begin);
 
 					// read and flush stream data to response stream
 					var size = AspNetCoreUtilityService.BufferSize;
@@ -687,15 +675,11 @@ namespace net.vieapps.Components.Utility
 					while (count < total)
 					{
 						var read = await stream.ReadAsync(buffer, 0, size, cts.Token).ConfigureAwait(false);
-						if (read > 0)
-						{
-							await context.WriteAsync(buffer, 0, read, cts.Token).ConfigureAwait(false);
-							await context.FlushAsync(cts.Token).ConfigureAwait(false);
-						}
+						await context.WriteAsync(buffer, 0, read, cts.Token).ConfigureAwait(false);
+						await context.FlushAsync(cts.Token).ConfigureAwait(false);
 						count++;
 					}
 				}
-			}
 		}
 
 		/// <summary>
