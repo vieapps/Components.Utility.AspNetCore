@@ -527,14 +527,14 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static byte[] Read(this HttpContext context)
 		{
+			var buffer = new byte[AspNetCoreUtilityService.BufferSize];
 			var data = new byte[0];
-			var buffer = new byte[TextFileReader.BufferSize];
-			var read = context.Request.Body.Read(buffer, 0, buffer.Length);
-			while (read > 0)
+			var read = 0;
+			do
 			{
-				data = data.Concat(buffer.Take(0, read));
 				read = context.Request.Body.Read(buffer, 0, buffer.Length);
-			}
+				data = data.Concat(buffer.Take(0, read));
+			} while (read > 0);
 			return data;
 		}
 
@@ -547,14 +547,14 @@ namespace net.vieapps.Components.Utility
 		{
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
 			{
+				var buffer = new byte[AspNetCoreUtilityService.BufferSize];
 				var data = new byte[0];
-				var buffer = new byte[TextFileReader.BufferSize];
-				var read = await context.Request.Body.ReadAsync(buffer, 0, buffer.Length, cts.Token).ConfigureAwait(false);
-				while (read > 0)
+				var read = 0;
+				do
 				{
-					data = data.Concat(buffer.Take(0, read));
 					read = await context.Request.Body.ReadAsync(buffer, 0, buffer.Length, cts.Token).ConfigureAwait(false);
-				}
+					data = data.Concat(buffer.Take(0, read));
+				} while (read > 0);
 				return data;
 			}
 		}
@@ -661,8 +661,8 @@ namespace net.vieapps.Components.Utility
 				using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
 				{
 					// jump to requested position
-					if (flushAsPartialContent)
-						stream.Seek(startBytes > 0 ? startBytes : 0, SeekOrigin.Begin);
+					if (flushAsPartialContent && startBytes > 0)
+						stream.Seek(startBytes, SeekOrigin.Begin);
 
 					// read and flush stream data to response stream
 					var size = AspNetCoreUtilityService.BufferSize;
@@ -764,7 +764,7 @@ namespace net.vieapps.Components.Utility
 
 			using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true))
 			{
-				await context.WriteAsync(stream, contentType, contentDisposition, eTag, fileInfo.LastWriteTime.ToUnixTimestamp(), "public", TimeSpan.FromDays(7), null, correlationID, cancellationToken).ConfigureAwait(false);
+				await context.WriteAsync(stream, contentType, contentDisposition, eTag, string.IsNullOrWhiteSpace(eTag) ? 0 : fileInfo.LastWriteTime.ToUnixTimestamp(), string.IsNullOrWhiteSpace(eTag) ? null : "public", string.IsNullOrWhiteSpace(eTag) ? TimeSpan.Zero : TimeSpan.FromDays(7), null, correlationID, cancellationToken).ConfigureAwait(false);
 			}
 		}
 
@@ -1109,7 +1109,7 @@ namespace net.vieapps.Components.Utility
 				var inner = ex.InnerException;
 				while (inner != null)
 				{
-					stack += "\r\n" + $" ---- Inner [{counter}] -------------------------------------- " + "\r\n" + inner.StackTrace;
+					stack += "\r\n" + $" ----- Inner [{counter}] --------------- " + "\r\n" + inner.StackTrace;
 					inner = inner.InnerException;
 					counter++;
 				}
