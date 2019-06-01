@@ -2,18 +2,14 @@
 using System.Linq;
 using System.Xml.Linq;
 using System.Collections.Generic;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Logging;
 
 namespace net.vieapps.Components.Utility
 {
 	/// <summary>
 	/// Distributed XML repository for working with data-protection
 	/// </summary>
-	public class DistributedXmlRepository : IXmlRepository
+	public class DistributedXmlRepository : Microsoft.AspNetCore.DataProtection.Repositories.IXmlRepository
 	{
 		readonly IDistributedCache _cache;
 		readonly DistributedXmlRepositoryOptions _options;
