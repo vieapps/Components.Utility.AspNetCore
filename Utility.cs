@@ -11,19 +11,20 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.StaticFiles;
-
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-
 using net.vieapps.Components.WebSockets;
 using net.vieapps.Components.Security;
 #endregion
@@ -138,7 +139,7 @@ namespace net.vieapps.Components.Utility
 			return html;
 		}
 
-		static FileExtensionContentTypeProvider MimeTypeProvider { get; set; }
+		static FileExtensionContentTypeProvider MimeTypeProvider { get; } = new FileExtensionContentTypeProvider();
 
 		/// <summary>
 		/// Gets the MIME type of a file
@@ -146,7 +147,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="filename"></param>
 		/// <returns></returns>
 		public static string GetMimeType(this string filename)
-			=> (AspNetCoreUtilityService.MimeTypeProvider ?? (AspNetCoreUtilityService.MimeTypeProvider = new FileExtensionContentTypeProvider())).TryGetContentType(filename, out string mimeType)
+			=> AspNetCoreUtilityService.MimeTypeProvider.TryGetContentType(filename, out var mimeType)
 				? mimeType
 				: "application/octet-stream";
 
@@ -492,22 +493,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="redirectPermanently">true to use 301 (Moved Permanently) instead of 302 (Redirect Temporary)</param>
 		public static void Redirect(this HttpContext context, string location, bool redirectPermanently = false)
 		{
-			if (string.IsNullOrWhiteSpace(location))
-				return;
-
-			var uri = new Uri(location);
-			var segments = uri.GetRequestPathSegments();
-			var path = (segments.Length > 0 ? "/" : "") + segments.Select(segment => segment.UrlDecode().UrlEncode()).Join("/") + (segments.Length > 0 && location.EndsWith("/") ? "/" : "");
-			var query = uri.ParseQuery().Select(kvp => kvp.Key + "=" + kvp.Value.UrlDecode().UrlEncode()).Join("&");
-
-			context.SetResponseHeaders(
-				redirectPermanently ? (int)HttpStatusCode.MovedPermanently : (int)HttpStatusCode.Redirect,
-				new Dictionary<string, string>
-				{
-					{ "Location", uri.Scheme + "://" + uri.Host + (uri.Port != 80 && uri.Port != 443 ? $":{uri.Port}" : "") + path + (string.IsNullOrWhiteSpace(query) ? "" : "?" + query) }
-				},
-				true
-			);
+			if (!string.IsNullOrWhiteSpace(location))
+				context.SetResponseHeaders(redirectPermanently ? (int)HttpStatusCode.MovedPermanently : (int)HttpStatusCode.Redirect, new Dictionary<string, string> { ["Location"] = location }, true);
 		}
 
 		/// <summary>
@@ -1297,5 +1284,16 @@ namespace net.vieapps.Components.Utility
 			=> websocket.WrapAsync(context, whenIsNotWebSocketRequestAsync);
 		#endregion
 
+		/// <summary>
+		/// Persists the data-protection keys to distributed cache
+		/// </summary>
+		/// <param name="dataProtection"></param>
+		/// <param name="options">The options</param>
+		/// <returns></returns>
+		public static IDataProtectionBuilder PersistKeysToDistributedCache(this IDataProtectionBuilder dataProtection, DistributedXmlRepositoryOptions options = null)
+		{
+			dataProtection.Services.Configure<KeyManagementOptions>(keyOptions => keyOptions.XmlRepository = new DistributedXmlRepository(dataProtection.Services.BuildServiceProvider().GetService<IDistributedCache>(), options ?? new DistributedXmlRepositoryOptions()));
+			return dataProtection;
+		}
 	}
 }

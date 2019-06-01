@@ -11,7 +11,7 @@
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
 		<AssemblyVersion>10.2.1906.1</AssemblyVersion>
 		<FileVersion>10.2.1906.1</FileVersion>
-		<InformationalVersion>v10.2.netstandard-2+rev:2019.05.23-extensions.headers</InformationalVersion>
+		<InformationalVersion>v10.2.netstandard-2+rev:2019.06.01-distributed.data.protection</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
@@ -24,7 +24,7 @@
 		<PackageLicense>LICENSE.md</PackageLicense>
 		<PackageOutputPath>..\</PackageOutputPath>
 		<PackageTags>utility;aspnetcore;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Improvement: extension methods</PackageReleaseNotes>
+		<PackageReleaseNotes>Improvement: allow data-protection works with distributed cache</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net/</PackageProjectUrl>
 		<PackageIconUrl>https://github.com/vieapps/Components.Utility/raw/master/logo.png</PackageIconUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.Utility.AspNetCore</RepositoryUrl>
@@ -39,9 +39,11 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.Authentication" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Diagnostics" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Http" Version="2.2.2" />
 		<PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.2.0" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="2.2.0" />
 		<PackageReference Include="VIEApps.Components.Caching" Version="10.2.1906.1" />
 		<PackageReference Include="VIEApps.Components.Security" Version="10.2.1906.1" />
 		<PackageReference Include="VIEApps.Components.Utility" Version="10.2.1906.1" />
