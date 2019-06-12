@@ -157,7 +157,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="fileInfo"></param>
 		/// <returns></returns>
 		public static string GetMimeType(this FileInfo fileInfo)
-			=> fileInfo.Name.GetMimeType();
+			=> fileInfo?.Name?.GetMimeType();
 
 		/// <summary>
 		/// Parses the query of an uri
@@ -569,7 +569,7 @@ namespace net.vieapps.Components.Utility
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
 			using (var reader = new StreamReader(context.Request.Body))
 			{
-				return await reader.ReadToEndAsync().WithCancellationToken(cts.Token).ConfigureAwait(false);
+				return await reader.ReadToEndAsync(cts.Token).ConfigureAwait(false);
 			}
 		}
 		#endregion
@@ -643,7 +643,7 @@ namespace net.vieapps.Components.Utility
 			context.SetResponseHeaders(flushAsPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers, context.Request.Method.IsEquals("HEAD"));
 			await context.FlushAsync(cancellationToken).ConfigureAwait(false);
 
-			// write the streamto output
+			// write the stream to output
 			if (context.Request.Method.IsEquals("GET"))
 				using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
 				{
@@ -1251,10 +1251,10 @@ namespace net.vieapps.Components.Utility
 		/// <summary>
 		/// Adds a handler of StatusCodePages middleware for responses with specified status codes
 		/// </summary>
-		/// <param name="app"></param>
+		/// <param name="appBuilder"></param>
 		/// <param name="getHtmlBody">The function to build the HTML body for displaying when no details of error is provided</param>
-		public static IApplicationBuilder UseStatusCodeHandler(this IApplicationBuilder app, Func<int, HttpContext, string> getHtmlBody = null)
-			=> app.UseStatusCodePages(context => context.ShowStatusPageAsync(getHtmlBody));
+		public static IApplicationBuilder UseStatusCodeHandler(this IApplicationBuilder appBuilder, Func<int, HttpContext, string> getHtmlBody = null)
+			=> appBuilder.UseStatusCodePages(context => context.ShowStatusPageAsync(getHtmlBody));
 		#endregion
 
 		#region Wrap a WebSocket connection of ASP.NET Core into WebSocket component
@@ -1284,6 +1284,7 @@ namespace net.vieapps.Components.Utility
 			=> websocket.WrapAsync(context, whenIsNotWebSocketRequestAsync);
 		#endregion
 
+		#region Persists the data-protection keys to distributed cache
 		/// <summary>
 		/// Persists the data-protection keys to distributed cache
 		/// </summary>
@@ -1295,5 +1296,7 @@ namespace net.vieapps.Components.Utility
 			dataProtection.Services.Configure<KeyManagementOptions>(keyOptions => keyOptions.XmlRepository = new DistributedXmlRepository(dataProtection.Services.BuildServiceProvider().GetService<IDistributedCache>(), options ?? new DistributedXmlRepositoryOptions()));
 			return dataProtection;
 		}
+		#endregion
+
 	}
 }

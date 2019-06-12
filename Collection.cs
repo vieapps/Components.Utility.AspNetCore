@@ -20,8 +20,6 @@ namespace net.vieapps.Components.Utility
 	/// </summary>
 	public static partial class AspNetCoreCollectionService
 	{
-
-		#region Working with sessions' items & contexts' items
 		/// <summary>
 		/// Adds an item into ASP.NET Core Session
 		/// </summary>
@@ -49,7 +47,7 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static object Get(this ISession session, string key) 
 			=> !string.IsNullOrWhiteSpace(key)
-				? session.TryGetValue(key.ToLower(), out byte[] value)
+				? session.TryGetValue(key.ToLower(), out var value)
 					? Helper.Deserialize(value)
 					: null
 				: null;
@@ -62,7 +60,7 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static T Get<T>(this ISession session, string key) 
 			=> !string.IsNullOrWhiteSpace(key)
-				? session.TryGetValue(key.ToLower(), out byte[] value)
+				? session.TryGetValue(key.ToLower(), out var value)
 					? Helper.Deserialize<T>(value)
 					: default(T)
 				: default(T);
@@ -89,9 +87,7 @@ namespace net.vieapps.Components.Utility
 			=> context.Items.TryGetValue(name, out object value) && value is T
 				? (T)value
 				: default(T);
-		#endregion
 
-		#region Conversions
 		/// <summary>
 		/// Converts this dictionary of string values to collection of name and value
 		/// </summary>
@@ -136,7 +132,5 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static Dictionary<string, string> ToDictionary(this QueryString queryString, Action<Dictionary<string, string>> onPreCompleted = null)
 			=> QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToDictionary(onPreCompleted);
-		#endregion
-
 	}
 }
