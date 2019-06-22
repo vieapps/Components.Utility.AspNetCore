@@ -498,12 +498,24 @@ namespace net.vieapps.Components.Utility
 		}
 
 		/// <summary>
-		/// Redirects permanently the response by send the status code (301 - MovedPermanently) to client
+		/// Redirects the response by send the redirect status code (301 or 302) to client
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="location"></param>
-		public static void RedirectPermanently(this HttpContext context, string location)
-			=> context.Redirect(location, true);
+		/// <param name="uri">The location to redirect to</param>
+		/// <param name="redirectPermanently">true to use 301 (Moved Permanently) instead of 302 (Redirect Temporary)</param>
+		public static void Redirect(this HttpContext context, Uri uri, bool redirectPermanently = false)
+		{
+			if (uri == null)
+				return;
+			var location = uri.Scheme + "://" + uri.Host + (uri.Port != 80 && uri.Port != 443 ? $":{uri.Port}" : "") + "/";
+			var pathSegments = uri.GetRequestPathSegments();
+			if (pathSegments != null && pathSegments.Length > 0)
+				location += pathSegments.ToString("/", segment => segment.UrlEncode());
+			var query = uri.ParseQuery();
+			if (query != null && query.Count > 0)
+				location += "?" + query.ToString("&", kvp => $"{kvp.Key}={kvp.Value.UrlEncode()}");
+			context.Redirect(location, redirectPermanently);
+		}
 		#endregion
 
 		#region Read data from request
