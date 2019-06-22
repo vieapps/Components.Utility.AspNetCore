@@ -510,10 +510,10 @@ namespace net.vieapps.Components.Utility
 			var location = uri.Scheme + "://" + uri.Host + (uri.Port != 80 && uri.Port != 443 ? $":{uri.Port}" : "") + "/";
 			var pathSegments = uri.GetRequestPathSegments();
 			if (pathSegments != null && pathSegments.Length > 0)
-				location += pathSegments.ToString("/", segment => segment.UrlEncode());
+				location += pathSegments.ToString("/", segment => segment.UrlDecode().UrlEncode());
 			var query = uri.ParseQuery();
 			if (query != null && query.Count > 0)
-				location += "?" + query.ToString("&", kvp => $"{kvp.Key}={kvp.Value.UrlEncode()}");
+				location += "?" + query.ToString("&", kvp => $"{kvp.Key}={kvp.Value.UrlDecode().UrlEncode()}");
 			context.Redirect(location, redirectPermanently);
 		}
 		#endregion
