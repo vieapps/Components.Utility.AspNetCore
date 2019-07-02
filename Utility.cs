@@ -29,7 +29,9 @@ using net.vieapps.Components.WebSockets;
 using net.vieapps.Components.Security;
 #endregion
 
+#if !SIGN
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("VIEApps.Components.XUnitTests")]
+#endif
 
 namespace net.vieapps.Components.Utility
 {
@@ -513,7 +515,9 @@ namespace net.vieapps.Components.Utility
 				location += pathSegments.ToString("/", segment => segment.UrlDecode().UrlEncode());
 			var query = uri.ParseQuery();
 			if (query != null && query.Count > 0)
-				location += "?" + query.ToString("&", kvp => $"{kvp.Key}={kvp.Value.UrlDecode().UrlEncode()}");
+				location += "?" + query.ToString("&", kvp => $"{kvp.Key.UrlEncode()}={kvp.Value.UrlDecode().UrlEncode()}");
+			if (!string.IsNullOrWhiteSpace(uri.Fragment))
+				location += uri.Fragment;
 			context.Redirect(location, redirectPermanently);
 		}
 		#endregion
