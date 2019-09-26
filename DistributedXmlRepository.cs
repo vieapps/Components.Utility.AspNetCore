@@ -20,18 +20,30 @@ namespace net.vieapps.Components.Utility
 			this._options = options;
 		}
 
-		public IReadOnlyCollection<XElement> GetAllElements()
+		XDocument Xml
 		{
-			var xml = this._cache.GetString(this._options.Key);
-			return (xml == null ? new XDocument() : XDocument.Parse(xml)).Elements().ToList().AsReadOnly();
+			get
+			{
+				try
+				{
+					var xml = this._cache.GetString(this._options.Key);
+					return string.IsNullOrWhiteSpace(xml) ? new XDocument() : XDocument.Parse(xml);
+				}
+				catch
+				{
+					return new XDocument();
+				}
+			}
 		}
+
+		public IReadOnlyCollection<XElement> GetAllElements()
+			=> this.Xml.Elements().ToList().AsReadOnly();
 
 		public void StoreElement(XElement element, string friendlyName)
 		{
-			var xml = this._cache.GetString(this._options.Key);
-			var xdoc = xml == null ? new XDocument() : XDocument.Parse(xml);
-			xdoc.Add(element);
-			this._cache.SetString(this._options.Key, xdoc.ToString(SaveOptions.DisableFormatting), this._options.CacheOptions);
+			var xml = this.Xml;
+			xml.Add(element);
+			this._cache.SetString(this._options.Key, xml.ToString(SaveOptions.DisableFormatting), this._options.CacheOptions);
 		}
 	}
 
