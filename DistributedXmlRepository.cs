@@ -41,9 +41,18 @@ namespace net.vieapps.Components.Utility
 
 		public void StoreElement(XElement element, string friendlyName)
 		{
-			var xml = this.Xml;
-			xml.Add(element);
-			this._cache.SetString(this._options.Key, xml.ToString(SaveOptions.DisableFormatting), this._options.CacheOptions);
+			XDocument document;
+			try
+			{
+				document = this.Xml;
+				document.Add(element);
+			}
+			catch
+			{
+				document = new XDocument();
+				document.Add(element);
+			}
+			this._cache.SetString(this._options.Key, document.ToString(SaveOptions.DisableFormatting), this._options.CacheOptions);
 		}
 	}
 
