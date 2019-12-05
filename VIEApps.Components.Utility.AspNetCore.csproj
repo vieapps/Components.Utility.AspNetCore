@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>netstandard2.0;netstandard2.1;netcoreapp3.0</TargetFrameworks>
+		<TargetFrameworks>netstandard2.0;netstandard2.1;netcoreapp3.0;netcoreapp3.1</TargetFrameworks>
 		<RootNamespace>net.vieapps.Components.Utility</RootNamespace>
 		<WarningLevel>3</WarningLevel>
 		<DocumentationFile>bin/$(Configuration)/$(TargetFramework)/VIEApps.Components.Utility.AspNetCore.xml</DocumentationFile>
@@ -29,7 +29,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../</PackageOutputPath>
 		<PackageTags>utility;aspnetcore;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Add support of multiple target frameworks (.NET Standard 2.x/.NET Core 3.0) with latest components</PackageReleaseNotes>
+		<PackageReleaseNotes>Upgrade to latest components and add supported of .NET Core 3.1</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.Utility.AspNetCore</RepositoryUrl>
 	</PropertyGroup>
@@ -48,20 +48,22 @@
 		<PackageReference Include="Microsoft.AspNetCore.Diagnostics" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Http" Version="2.2.2" />
 		<PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.2.0" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="3.0.0" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="3.1.0" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)'!='true'">
-		<PackageReference Include="VIEApps.Components.Caching" Version="10.3.1910.4" />
-		<PackageReference Include="VIEApps.Components.Security" Version="10.3.1910.4" />
-		<PackageReference Include="VIEApps.Components.Utility" Version="10.3.1910.4" />
-		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.3.1910.4" />
+		<PackageReference Include="VIEApps.Components.Caching" Version="10.3.1912.2" />
+		<PackageReference Include="VIEApps.Components.Security" Version="10.3.1912.2" />
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.3.1912.2" />
+		<PackageReference Include="VIEApps.Components.Utility.Excel" Version="10.3.1912.2" />
+		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.3.1912.2" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)'=='true'">
 		<PackageReference Include="VIEApps.Components.Caching$(PackageSuffix)" Version="10.3$(ReleaseVersion)" />
 		<PackageReference Include="VIEApps.Components.Security$(PackageSuffix)" Version="10.3$(ReleaseVersion)" />
 		<PackageReference Include="VIEApps.Components.Utility$(PackageSuffix)" Version="10.3$(ReleaseVersion)" />
+		<PackageReference Include="VIEApps.Components.Utility.Excel$(PackageSuffix)" Version="10.3$(ReleaseVersion)" />
 		<PackageReference Include="VIEApps.Components.WebSockets$(PackageSuffix)" Version="10.3$(ReleaseVersion)" />
 	</ItemGroup>
 
