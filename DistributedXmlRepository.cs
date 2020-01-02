@@ -20,35 +20,33 @@ namespace net.vieapps.Components.Utility
 			this._options = options;
 		}
 
-		XDocument Xml
+		protected XDocument GetXDocument()
 		{
-			get
+			try
 			{
-				try
-				{
-					var xml = this._cache.GetString(this._options.Key);
-					return string.IsNullOrWhiteSpace(xml) ? new XDocument() : XDocument.Parse(xml);
-				}
-				catch
-				{
-					return new XDocument();
-				}
+				var xml = this._cache.GetString(this._options.Key);
+				return string.IsNullOrWhiteSpace(xml) ? new XDocument() : XDocument.Parse(xml);
+			}
+			catch
+			{
+				return new XDocument();
 			}
 		}
 
 		public IReadOnlyCollection<XElement> GetAllElements()
-			=> this.Xml.Elements().ToList().AsReadOnly();
+			=> this.GetXDocument().Elements().ToList().AsReadOnly();
 
 		public void StoreElement(XElement element, string friendlyName)
 		{
 			XDocument document;
 			try
 			{
-				document = this.Xml;
+				document = this.GetXDocument();
 				document.Add(element);
 			}
 			catch
 			{
+				this._cache.Remove(this._options.Key);
 				document = new XDocument();
 				document.Add(element);
 			}

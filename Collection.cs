@@ -62,8 +62,8 @@ namespace net.vieapps.Components.Utility
 			=> !string.IsNullOrWhiteSpace(key)
 				? session.TryGetValue(key.ToLower(), out var value)
 					? Helper.Deserialize<T>(value)
-					: default(T)
-				: default(T);
+					: default
+				: default;
 
 		/// <summary>
 		/// Checks to see the key is existed in ASP.NET Core Session or not
@@ -86,7 +86,7 @@ namespace net.vieapps.Components.Utility
 		public static T GetItem<T>(this HttpContext context, string name)
 			=> context.Items.TryGetValue(name, out object value) && value is T
 				? (T)value
-				: default(T);
+				: default;
 
 		/// <summary>
 		/// Converts this dictionary of string values to collection of name and value

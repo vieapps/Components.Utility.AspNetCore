@@ -423,7 +423,7 @@ namespace net.vieapps.Components.Utility
 			if (!string.IsNullOrWhiteSpace(cacheControl))
 			{
 				headers["Cache-Control"] = cacheControl;
-				if (expires != default(TimeSpan) && expires.Ticks > 0)
+				if (expires != default && expires.Ticks > 0)
 					headers["Expires"] = DateTime.Now.Add(expires).ToHttpString();
 			}
 
@@ -479,7 +479,7 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="cancellationToken"></param>
-		public static async Task FlushAsync(this HttpContext context, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task FlushAsync(this HttpContext context, CancellationToken cancellationToken = default)
 		{
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
 			{
@@ -546,7 +546,7 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
-		public static async Task<byte[]> ReadAsync(this HttpContext context, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task<byte[]> ReadAsync(this HttpContext context, CancellationToken cancellationToken = default)
 		{
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
 			{
@@ -580,7 +580,7 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
-		public static async Task<string> ReadTextAsync(this HttpContext context, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task<string> ReadTextAsync(this HttpContext context, CancellationToken cancellationToken = default)
 		{
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
 			using (var reader = new StreamReader(context.Request.Body))
@@ -599,7 +599,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="headers">The headers</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, Stream stream, Dictionary<string, string> headers, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task WriteAsync(this HttpContext context, Stream stream, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
 		{
 			// check ETag for supporting resumeable downloaders
 			var eTag = headers?.FirstOrDefault(kvp => kvp.Key.IsEquals("ETag")).Value;
@@ -700,7 +700,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, Stream stream, string contentType, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default(TimeSpan), Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static Task WriteAsync(this HttpContext context, Stream stream, string contentType, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default, Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default)
 		{
 			// prepare headers
 			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
@@ -720,7 +720,7 @@ namespace net.vieapps.Components.Utility
 			if (!string.IsNullOrWhiteSpace(cacheControl))
 			{
 				headers["Cache-Control"] = cacheControl;
-				if (expires != default(TimeSpan) && expires.Ticks > 0)
+				if (expires != default && expires.Ticks > 0)
 					headers["Expires"] = DateTime.Now.Add(expires).ToHttpString();
 			}
 
@@ -744,7 +744,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="expires">The timespan that presents expires time of cache</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, Stream stream, string contentType, string contentDisposition, string eTag, long lastModified, string cacheControl, TimeSpan expires, CancellationToken cancellationToken = default(CancellationToken))
+		public static Task WriteAsync(this HttpContext context, Stream stream, string contentType, string contentDisposition, string eTag, long lastModified, string cacheControl, TimeSpan expires, CancellationToken cancellationToken = default)
 			=> context.WriteAsync(stream, contentType, contentDisposition, eTag, lastModified, cacheControl, expires, null, null, cancellationToken);
 		#endregion
 
@@ -760,7 +760,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition = null, string eTag = null, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition = null, string eTag = null, string correlationID = null, CancellationToken cancellationToken = default)
 		{
 			if (fileInfo == null || !fileInfo.Exists)
 				throw new FileNotFoundException($"Not found{(fileInfo != null ? $" [{fileInfo.Name}]" : "")}");
@@ -781,7 +781,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="eTag">The entity tag</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition, string eTag = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition, string eTag = null, CancellationToken cancellationToken = default)
 			=> context.WriteAsync(fileInfo, contentType, contentDisposition, eTag, null, cancellationToken);
 
 		/// <summary>
@@ -791,7 +791,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="fileInfo">The information of the file</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, CancellationToken cancellationToken = default(CancellationToken))
+		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, CancellationToken cancellationToken = default)
 			=> context.WriteAsync(fileInfo, null, null, null, cancellationToken);
 		#endregion
 
@@ -804,12 +804,12 @@ namespace net.vieapps.Components.Utility
 		/// <param name="filename"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static async Task WriteAsExcelDocumentAsync(this HttpContext context, DataSet dataSet, string filename = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task WriteAsExcelDocumentAsync(this HttpContext context, DataSet dataSet, string filename = null, CancellationToken cancellationToken = default)
 		{
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
 			using (var stream = await dataSet.SaveAsExcelAsync(cts.Token).ConfigureAwait(false))
 			{
-				await context.WriteAsync(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename ?? $"{dataSet.Tables[0].TableName}.xlsx", null, 0, null, default(TimeSpan), null, null, cts.Token).ConfigureAwait(false);
+				await context.WriteAsync(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename ?? $"{dataSet.Tables[0].TableName}.xlsx", null, 0, null, default, null, null, cts.Token).ConfigureAwait(false);
 			}
 		}
 
@@ -820,7 +820,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="dataSet"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static Task WriteAsExcelDocumentAsync(this HttpContext context, DataSet dataSet, CancellationToken cancellationToken = default(CancellationToken)) 
+		public static Task WriteAsExcelDocumentAsync(this HttpContext context, DataSet dataSet, CancellationToken cancellationToken = default) 
 			=> context.WriteAsExcelDocumentAsync(dataSet, null, cancellationToken);
 		#endregion
 
@@ -853,7 +853,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="count"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, byte[] buffer, int offset = 0, int count = 0, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task WriteAsync(this HttpContext context, byte[] buffer, int offset = 0, int count = 0, CancellationToken cancellationToken = default)
 		{
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
 			{
@@ -878,7 +878,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="buffer"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, ArraySegment<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
+		public static Task WriteAsync(this HttpContext context, ArraySegment<byte> buffer, CancellationToken cancellationToken = default)
 			=> context.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken);
 
 		/// <summary>
@@ -896,7 +896,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, byte[] buffer, string contentType, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default(TimeSpan), Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task WriteAsync(this HttpContext context, byte[] buffer, string contentType, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default, Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default)
 		{
 			using (var stream = buffer.ToMemoryStream())
 			{
@@ -917,7 +917,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="expires">The timespan that presents expires time of cache</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, byte[] buffer, string contentType, string contentDisposition, string eTag, long lastModified, string cacheControl, TimeSpan expires, CancellationToken cancellationToken = default(CancellationToken))
+		public static Task WriteAsync(this HttpContext context, byte[] buffer, string contentType, string contentDisposition, string eTag, long lastModified, string cacheControl, TimeSpan expires, CancellationToken cancellationToken = default)
 			=> context.WriteAsync(buffer, contentType, contentDisposition, eTag, lastModified, cacheControl, expires, null, null, cancellationToken);
 		#endregion
 
@@ -939,7 +939,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="encoding"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, string text, Encoding encoding = null, CancellationToken cancellationToken = default(CancellationToken)) 
+		public static Task WriteAsync(this HttpContext context, string text, Encoding encoding = null, CancellationToken cancellationToken = default) 
 			=> context.WriteAsync(text.ToBytes(encoding).ToArraySegment(), cancellationToken);
 
 		/// <summary>
@@ -977,7 +977,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="contentType"></param>
 		/// <param name="correlationID"></param>
 		public static void Write(this HttpContext context, string text, string contentType = "text/html", string correlationID = null) 
-			=> context.Write(text, contentType, null, 0, null, default(TimeSpan), correlationID);
+			=> context.Write(text, contentType, null, 0, null, default, correlationID);
 
 		/// <summary>
 		/// Writes the given text to the response body
@@ -992,7 +992,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="correlationID"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, string text, string contentType, string eTag, long lastModified, string cacheControl, TimeSpan expires, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task WriteAsync(this HttpContext context, string text, string contentType, string eTag, long lastModified, string cacheControl, TimeSpan expires, string correlationID = null, CancellationToken cancellationToken = default)
 		{
 			context.SetResponseHeaders((int)HttpStatusCode.OK, contentType, eTag, lastModified, cacheControl, expires, correlationID);
 			await context.WriteAsync(text.ToBytes().ToArraySegment(), cancellationToken).ConfigureAwait(false);
@@ -1005,8 +1005,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="text"></param>
 		/// <param name="contentType"></param>
 		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, string text, string contentType = "text/html", string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
-			=> context.WriteAsync(text, contentType, null, 0, null, default(TimeSpan), correlationID);
+		public static Task WriteAsync(this HttpContext context, string text, string contentType = "text/html", string correlationID = null, CancellationToken cancellationToken = default)
+			=> context.WriteAsync(text, contentType, null, 0, null, default, correlationID, cancellationToken);
 		#endregion
 
 		#region Write JSON data to the response body
@@ -1032,7 +1032,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="formatting"></param>
 		/// <param name="correlationID"></param>
 		public static void Write(this HttpContext context, JToken json, Formatting formatting = Formatting.None, string correlationID = null) 
-			=> context.Write(json, formatting, null, 0, null, default(TimeSpan), correlationID);
+			=> context.Write(json, formatting, null, 0, null, default, correlationID);
 
 		/// <summary>
 		/// Writes the JSON to the response body
@@ -1045,7 +1045,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="cacheControl"></param>
 		/// <param name="expires"></param>
 		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting, string eTag, long lastModified, string cacheControl, TimeSpan expires, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting, string eTag, long lastModified, string cacheControl, TimeSpan expires, string correlationID = null, CancellationToken cancellationToken = default)
 			=> context.WriteAsync(json?.ToString(formatting) ?? "{}", "application/json", eTag, lastModified, cacheControl, expires, correlationID, cancellationToken);
 
 		/// <summary>
@@ -1055,8 +1055,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="json"></param>
 		/// <param name="formatting"></param>
 		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting = Formatting.None, string correlationID = null, CancellationToken cancellationToken = default(CancellationToken))
-			=> context.WriteAsync(json, formatting, null, 0, null, default(TimeSpan), correlationID, cancellationToken);
+		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting = Formatting.None, string correlationID = null, CancellationToken cancellationToken = default)
+			=> context.WriteAsync(json, formatting, null, 0, null, default, correlationID, cancellationToken);
 
 		/// <summary>
 		/// Writes the JSON to the response body
@@ -1227,13 +1227,16 @@ namespace net.vieapps.Components.Utility
 			var encoding = context.HttpContext.Request.Headers["Accept-Encoding"].ToString() ?? "";
 			if (body.Length < 1)
 				encoding = null;
+#if !NETSTANDARD2_0
+			else if (encoding.IsContains("br"))
+				encoding = "br";
+#endif
 			else if (encoding.IsContains("gzip"))
 				encoding = "gzip";
 			else if (encoding.IsContains("deflate"))
 				encoding = "deflate";
 			else
 				encoding = null;
-
 			if (!string.IsNullOrWhiteSpace(encoding))
 				body = body.Compress(encoding);
 
