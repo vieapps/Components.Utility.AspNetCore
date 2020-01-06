@@ -1227,7 +1227,7 @@ namespace net.vieapps.Components.Utility
 			var encoding = context.HttpContext.Request.Headers["Accept-Encoding"].ToString() ?? "";
 			if (body.Length < 1)
 				encoding = null;
-#if !NETSTANDARD2_0
+#if !NETSTANDARD2_0 && !NETCOREAPP2_0
 			else if (encoding.IsContains("br"))
 				encoding = "br";
 #endif
