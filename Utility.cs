@@ -383,11 +383,11 @@ namespace net.vieapps.Components.Utility
 			}
 
 			// update into context to use at status page middleware
-			context.Items["StatusCode"] = statusCode;
-			context.Items["Body"] = "";
-			context.Items["Headers"] = headers;
+			context.SetItem("StatusCode", statusCode);
+			context.SetItem("Body", "");
+			context.SetItem("Headers", headers);
 			if (headers.TryGetValue("Cache-Control", out var cacheControl))
-				context.Items["CacheControl"] = cacheControl;
+				context.SetItem("CacheControl", cacheControl);
 
 			// update headers
 			headers.ForEach(kvp => context.Response.Headers[kvp.Key] = kvp.Value);
@@ -532,11 +532,12 @@ namespace net.vieapps.Components.Utility
 		{
 			var buffer = new byte[AspNetCoreUtilityService.BufferSize];
 			var data = new byte[0];
-			var read = 0;
+			int read;
 			do
 			{
 				read = context.Request.Body.Read(buffer, 0, buffer.Length);
-				data = data.Concat(buffer.Take(0, read));
+				if (read > 0)
+					data = data.Concat(buffer.Take(0, read));
 			} while (read > 0);
 			return data;
 		}
@@ -552,11 +553,12 @@ namespace net.vieapps.Components.Utility
 			{
 				var buffer = new byte[AspNetCoreUtilityService.BufferSize];
 				var data = new byte[0];
-				var read = 0;
+				int read;
 				do
 				{
 					read = await context.Request.Body.ReadAsync(buffer, 0, buffer.Length, cts.Token).ConfigureAwait(false);
-					data = data.Concat(buffer.Take(0, read));
+					if (read > 0)
+						data = data.Concat(buffer.Take(0, read));
 				} while (read > 0);
 				return data;
 			}
@@ -1084,9 +1086,9 @@ namespace net.vieapps.Components.Utility
 		{
 			// update into context to use at status page middleware
 			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
-			context.Items["StatusCode"] = statusCode;
-			context.Items["ContentType"] = "text/html";
-			context.Items["Body"] = context.GetHttpStatusCodeBody(statusCode, message, type, correlationID, stack, showStack);
+			context.SetItem("StatusCode", statusCode);
+			context.SetItem("ContentType", "text/html");
+			context.SetItem("Body", context.GetHttpStatusCodeBody(statusCode, message, type, correlationID, stack, showStack));
 
 			// set status code to raise status page middleware
 			context.Response.StatusCode = statusCode;
@@ -1150,9 +1152,9 @@ namespace net.vieapps.Components.Utility
 				json["StackTrace"] = stack;
 
 			// update into context to use at status page middleware
-			context.Items["StatusCode"] = statusCode;
-			context.Items["ContentType"] = "application/json";
-			context.Items["Body"] = json.ToString(Formatting.Indented);
+			context.SetItem("StatusCode", statusCode);
+			context.SetItem("ContentType", "application/json");
+			context.SetItem("Body", json.ToString(Formatting.Indented));
 
 			// set status code to raise status page middleware
 			context.Response.StatusCode = statusCode;
@@ -1209,7 +1211,7 @@ namespace net.vieapps.Components.Utility
 		{
 			// prepare status
 			var statusCode = context.HttpContext.Items.ContainsKey("StatusCode")
-				? (int)context.HttpContext.Items["StatusCode"]
+				? context.HttpContext.GetItem<int>("StatusCode")
 				: context.HttpContext.Response.StatusCode;
 
 			// prepare content-type & body string

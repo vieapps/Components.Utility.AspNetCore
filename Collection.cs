@@ -77,6 +77,16 @@ namespace net.vieapps.Components.Utility
 				: false;
 
 		/// <summary>
+		/// Sets an object into this context items
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="context"></param>
+		/// <param name="name"></param>
+		/// <returns></returns>
+		public static void SetItem<T>(this HttpContext context, string name, T value)
+			=> context.Items.Add(name, value);
+
+		/// <summary>
 		/// Gets an object from this context items
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
@@ -84,7 +94,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="name"></param>
 		/// <returns></returns>
 		public static T GetItem<T>(this HttpContext context, string name)
-			=> context.Items.TryGetValue(name, out object value) && value is T
+			=> context.Items.TryGetValue(name, out var value) && value is T
 				? (T)value
 				: default;
 
