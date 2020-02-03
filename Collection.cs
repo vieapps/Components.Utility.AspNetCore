@@ -84,7 +84,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="name"></param>
 		/// <returns></returns>
 		public static void SetItem<T>(this HttpContext context, string name, T value)
-			=> context.Items.Add(name, value);
+			=> context.Items[name] = value;
 
 		/// <summary>
 		/// Gets an object from this context items
