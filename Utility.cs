@@ -110,7 +110,7 @@ namespace net.vieapps.Components.Utility
 		}
 
 		/// <summary>
-		/// Gets the name of server to write into headers
+		/// Gets the name of server
 		/// </summary>
 		/// <param name="context"></param>
 		/// <returns></returns>
@@ -168,11 +168,7 @@ namespace net.vieapps.Components.Utility
 		/// /// <param name="onCompleted">Action to run on parsing completed</param>
 		/// <returns>The collection of key and value pair</returns>
 		public static Dictionary<string, string> ParseQuery(this Uri uri, Action<Dictionary<string, string>> onCompleted = null)
-		{
-			var query = QueryHelpers.ParseQuery(uri.Query).ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(), StringComparer.OrdinalIgnoreCase);
-			onCompleted?.Invoke(query);
-			return query;
-		}
+			=> QueryHelpers.ParseQuery(uri.Query).ToDictionary(onCompleted);
 
 		/// <summary>
 		/// Parses the query of the request in this context
@@ -184,15 +180,38 @@ namespace net.vieapps.Components.Utility
 			=> context.GetRequestUri().ParseQuery(onCompleted);
 
 		/// <summary>
+		/// Tries to get the value of a header parameter
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="name">The string that presents name of parameter want to get</param>
+		/// <returns></returns>
+		public static bool TryGetHeaderParameter(this HttpContext context, string name, out string value)
+		{
+			value = null;
+			return !string.IsNullOrWhiteSpace(name) && context.Request.Headers.ToDictionary().TryGetValue(name, out value);
+		}
+
+		/// <summary>
 		/// Gets the value of a header parameter
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="name">The string that presents name of parameter want to get</param>
 		/// <returns></returns>
 		public static string GetHeaderParameter(this HttpContext context, string name)
+			=> context.TryGetHeaderParameter(name, out var value) && !string.IsNullOrWhiteSpace(value)
+				? value
+				: null;
+
+		/// <summary>
+		/// Tries to get the value of a query parameter
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="name">The string that presents name of parameter want to get</param>
+		/// <returns></returns>
+		public static bool TryGetQueryParameter(this HttpContext context, string name, out string value)
 		{
-			var value = string.IsNullOrWhiteSpace(name) ? string.Empty : context.Request.Headers[name].ToString();
-			return string.IsNullOrWhiteSpace(value) ? null : value;
+			value = null;
+			return !string.IsNullOrWhiteSpace(name) && context.Request.QueryString.ToDictionary().TryGetValue(name, out value);
 		}
 
 		/// <summary>
@@ -202,10 +221,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="name">The string that presents name of parameter want to get</param>
 		/// <returns></returns>
 		public static string GetQueryParameter(this HttpContext context, string name)
-			=> !string.IsNullOrWhiteSpace(name)
-				? context.Request.QueryString.ToDictionary().TryGetValue(name, out string value)
-					? value
-					: null
+			=> context.TryGetQueryParameter(name, out var value) && !string.IsNullOrWhiteSpace(value)
+				? value
 				: null;
 
 		/// <summary>
@@ -303,10 +320,9 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static Uri GetReferUri(this HttpContext context)
-		{
-			var referer = context.Request.Headers["Referer"].ToString();
-			return string.IsNullOrWhiteSpace(referer) ? null : new Uri(referer);
-		}
+			=> context.TryGetHeaderParameter("Referer", out var value) && !string.IsNullOrWhiteSpace(value)
+				? new Uri(value)
+				: null;
 
 		/// <summary>
 		/// Gets the origin Uniform Resource Identifier (URI) of the request that was sent by the client
@@ -314,10 +330,9 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static Uri GetOriginUri(this HttpContext context)
-		{
-			var origin = context.Request.Headers["Origin"].ToString();
-			return string.IsNullOrWhiteSpace(origin) ? null : new Uri(origin);
-		}
+			=> context.TryGetHeaderParameter("Origin", out var value) && !string.IsNullOrWhiteSpace(value)
+				? new Uri(value)
+				: null;
 
 		/// <summary>
 		/// Gets the user-agent string of the request that was sent by the client
@@ -325,10 +340,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static string GetUserAgent(this HttpContext context)
-		{
-			var userAgent = context.Request.Headers["User-Agent"].ToString();
-			return string.IsNullOrWhiteSpace(userAgent) ? "" : userAgent;
-		}
+			=> context.GetHeaderParameter("User-Agent") ?? "";
 
 		/// <summary>
 		/// Gets the local endpoint
@@ -349,11 +361,11 @@ namespace net.vieapps.Components.Utility
 			if (endpoint.Port == 0)
 				try
 				{
-					var uri = !string.IsNullOrWhiteSpace(context.Request.Headers["x-original-remote-endpoint"])
-						? new Uri($"https://{context.Request.Headers["x-original-remote-endpoint"]}")
-						: !string.IsNullOrWhiteSpace(context.Request.Headers["cf-connecting-ip"])
-							? new Uri($"https://{context.Request.Headers["cf-connecting-ip"]}:{new Uri($"https://{context.Request.Headers["x-original-for"]}").Port}")
-							: new Uri($"https://{context.Request.Headers["x-original-for"]}");
+					var uri = context.TryGetHeaderParameter("x-original-remote-endpoint", out var value)
+						? new Uri(value)
+						: context.TryGetHeaderParameter("cf-connecting-ip", out value)
+							? new Uri($"https://{value}:{new Uri($"https://{context.GetHeaderParameter("x-original-for")}").Port}")
+							: new Uri($"https://{context.GetHeaderParameter("x-original-for")}");
 					endpoint = new IPEndPoint(IPAddress.Parse(uri.Host), uri.Port);
 				}
 				catch { }

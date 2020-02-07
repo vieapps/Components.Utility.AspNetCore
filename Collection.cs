@@ -129,18 +129,27 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static Dictionary<string, string> ToDictionary(this IDictionary<string, StringValues> dictionary, Action<Dictionary<string, string>> onPreCompleted = null)
 		{
-			var dict = dictionary.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+			var dict = dictionary.ToDictionary(kvp => kvp.Key, kvp => $"{kvp.Value}", StringComparer.OrdinalIgnoreCase);
 			onPreCompleted?.Invoke(dict);
 			return dict;
 		}
 
 		/// <summary>
-		/// Converts this query string to dictinary of string
+		/// Converts this query string to a dictinary of string
 		/// </summary>
 		/// <param name="queryString"></param>
 		/// <param name="onPreCompleted">The action to run before completed</param>
 		/// <returns></returns>
 		public static Dictionary<string, string> ToDictionary(this QueryString queryString, Action<Dictionary<string, string>> onPreCompleted = null)
 			=> QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToDictionary(onPreCompleted);
+
+		/// <summary>
+		/// Converts this header to a dictinary of string
+		/// </summary>
+		/// <param name="header"></param>
+		/// <param name="onPreCompleted">The action to run before completed</param>
+		/// <returns></returns>
+		public static Dictionary<string, string> ToDictionary(this IHeaderDictionary header, Action<Dictionary<string, string>> onPreCompleted = null)
+			=> (header as IDictionary<string, StringValues>).ToDictionary(onPreCompleted);
 	}
 }
