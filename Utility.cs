@@ -380,8 +380,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="statusCode">The HTTP status code</param>
 		/// <param name="headers">The HTTP headers</param>
-		/// <param name="tryWriteEmptyResponse">true to try to write empty response</param>
-		public static void SetResponseHeaders(this HttpContext context, int statusCode, Dictionary<string, string> headers = null, bool tryWriteEmptyResponse = false)
+		public static void SetResponseHeaders(this HttpContext context, int statusCode, Dictionary<string, string> headers = null)
 		{
 			// prepare
 			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
@@ -404,8 +403,6 @@ namespace net.vieapps.Components.Utility
 			// update headers
 			headers.ForEach(kvp => context.Response.Headers[kvp.Key] = kvp.Value);
 			context.Response.StatusCode = statusCode;
-			if (tryWriteEmptyResponse)
-				context.Write(new byte[0]);
 		}
 
 		/// <summary>
@@ -508,7 +505,7 @@ namespace net.vieapps.Components.Utility
 		public static void Redirect(this HttpContext context, string location, bool redirectPermanently = false)
 		{
 			if (!string.IsNullOrWhiteSpace(location))
-				context.SetResponseHeaders(redirectPermanently ? (int)HttpStatusCode.MovedPermanently : (int)HttpStatusCode.Redirect, new Dictionary<string, string> { ["Location"] = location }, true);
+				context.SetResponseHeaders(redirectPermanently ? (int)HttpStatusCode.MovedPermanently : (int)HttpStatusCode.Redirect, new Dictionary<string, string> { ["Location"] = location });
 		}
 
 		/// <summary>
@@ -670,7 +667,7 @@ namespace net.vieapps.Components.Utility
 			if (!string.IsNullOrWhiteSpace(eTag))
 				headers["Accept-Ranges"] = "bytes";
 
-			context.SetResponseHeaders(flushAsPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers, context.Request.Method.IsEquals("HEAD"));
+			context.SetResponseHeaders(flushAsPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers);
 			await context.FlushAsync(cancellationToken).ConfigureAwait(false);
 
 			// write the stream to output
@@ -1238,11 +1235,11 @@ namespace net.vieapps.Components.Utility
 			// prepare body
 			var body = bodystr.ToBytes();
 
-			var encoding = context.HttpContext.Request.Headers["Accept-Encoding"].ToString() ?? "";
+			var encoding = context.HttpContext.Request.Headers["Accept-Encoding"].ToString();
 			if (body.Length < 1)
 				encoding = null;
 #if !NETSTANDARD2_0
-			else if (encoding.IsContains("br"))
+			else if (encoding.IsContains("br") || encoding.IsContains("*"))
 				encoding = "br";
 #endif
 			else if (encoding.IsContains("gzip"))
@@ -1251,6 +1248,7 @@ namespace net.vieapps.Components.Utility
 				encoding = "deflate";
 			else
 				encoding = null;
+
 			if (!string.IsNullOrWhiteSpace(encoding))
 				body = body.Compress(encoding);
 
@@ -1258,6 +1256,7 @@ namespace net.vieapps.Components.Utility
 			var headers = context.HttpContext.GetItem<Dictionary<string, string>>("Headers") ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 			headers["Server"] = context.HttpContext.GetServerName();
 			headers["Cache-Control"] = context.HttpContext.GetItem<string>("CacheControl") ?? "private, no-store, no-cache";
+			headers["Access-Control-Allow-Origin"] = "*";
 
 			if (body.Length > 0)
 			{
@@ -1279,6 +1278,7 @@ namespace net.vieapps.Components.Utility
 			context.HttpContext.Response.StatusCode = statusCode;
 			if (body.Length > 0)
 				await context.HttpContext.WriteAsync(body).ConfigureAwait(false);
+			await context.HttpContext.FlushAsync().ConfigureAwait(false);
 		}
 
 		/// <summary>
