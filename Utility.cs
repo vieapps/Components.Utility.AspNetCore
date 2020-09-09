@@ -620,6 +620,7 @@ namespace net.vieapps.Components.Utility
 				if (!string.IsNullOrWhiteSpace(requestETag) && !eTag.Equals(requestETag))
 				{
 					context.SetResponseHeaders((int)HttpStatusCode.PreconditionFailed, null, 0, "private", null);
+					await context.FlushAsync(cancellationToken).ConfigureAwait(false);
 					return;
 				}
 			}
@@ -637,6 +638,7 @@ namespace net.vieapps.Components.Utility
 				if (startBytes >= totalBytes)
 				{
 					context.SetResponseHeaders((int)HttpStatusCode.PreconditionFailed, null, 0, "private", null);
+					await context.FlushAsync(cancellationToken).ConfigureAwait(false);
 					return;
 				}
 
