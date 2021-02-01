@@ -766,21 +766,36 @@ namespace net.vieapps.Components.Utility
 		/// Writes the content of a file (binary) to the response body
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="fileInfo">The information of the file</param>
+		/// <param name="fileInfo">The information of the file to write to output stream</param>
 		/// <param name="contentType">The MIME type</param>
 		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
 		/// <param name="eTag">The entity tag</param>
+		/// <param name="lastModified">The Unix timestamp that presents last-modified time</param>
+		/// <param name="cacheControl">The string that presents cache control ('public', 'private', 'no-store')</param>
+		/// <param name="expires">The timespan that presents expires time of cache</param>
+		/// <param name="headers">The additional headers</param>
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition = null, string eTag = null, string correlationID = null, CancellationToken cancellationToken = default)
+		public static async Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType = null, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default, Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default)
 		{
 			if (fileInfo == null || !fileInfo.Exists)
 				throw new FileNotFoundException($"Not found{(fileInfo != null ? $" [{fileInfo.Name}]" : "")}");
 
 			using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true))
 			{
-				await context.WriteAsync(stream, contentType, contentDisposition, eTag, string.IsNullOrWhiteSpace(eTag) ? 0 : fileInfo.LastWriteTime.ToUnixTimestamp(), string.IsNullOrWhiteSpace(eTag) ? null : "public", string.IsNullOrWhiteSpace(eTag) ? TimeSpan.Zero : TimeSpan.FromDays(7), null, correlationID, cancellationToken).ConfigureAwait(false);
+				await context.WriteAsync(
+					stream,
+					contentType ?? fileInfo.GetMimeType(),
+					contentDisposition,
+					eTag,
+					string.IsNullOrWhiteSpace(eTag) ? 0 : lastModified > 0 ? lastModified : fileInfo.LastWriteTime.ToUnixTimestamp(), 
+					string.IsNullOrWhiteSpace(eTag) ? null : cacheControl ?? "public",
+					string.IsNullOrWhiteSpace(eTag) ? TimeSpan.Zero : expires != TimeSpan.Zero && expires.Ticks > 0 ? expires : TimeSpan.FromDays(366),
+					headers,
+					correlationID,
+					cancellationToken
+				).ConfigureAwait(false);
 			}
 		}
 
@@ -788,14 +803,27 @@ namespace net.vieapps.Components.Utility
 		/// Writes the content of a file (binary) to the response body
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="fileInfo">The information of the file</param>
+		/// <param name="fileInfo">The information of the file to write to output stream</param>
 		/// <param name="contentType">The MIME type</param>
+		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
+		/// <param name="eTag">The entity tag</param>
+		/// <param name="correlationID">The correlation identity</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition = null, string eTag = null, string correlationID = null, CancellationToken cancellationToken = default)
+			=> context.WriteAsync(fileInfo, contentType, contentDisposition, eTag, 0, null, TimeSpan.Zero, null, correlationID, cancellationToken);
+
+		/// <summary>
+		/// Writes the content of a file (binary) to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="fileInfo">The information of the file</param>
 		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
 		/// <param name="eTag">The entity tag</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition, string eTag = null, CancellationToken cancellationToken = default)
-			=> context.WriteAsync(fileInfo, contentType, contentDisposition, eTag, null, cancellationToken);
+		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentDisposition, string eTag = null, CancellationToken cancellationToken = default)
+			=> context.WriteAsync(fileInfo, null, contentDisposition, eTag, null, cancellationToken);
 
 		/// <summary>
 		/// Writes the content of a file (binary) to the response body
@@ -805,36 +833,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, CancellationToken cancellationToken = default)
-			=> context.WriteAsync(fileInfo, null, null, null, cancellationToken);
-		#endregion
-
-		#region Write a data-set as Excel document to the response body
-		/// <summary>
-		/// Writes a data-set as Excel document to to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="dataSet"></param>
-		/// <param name="filename"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static async Task WriteAsExcelDocumentAsync(this HttpContext context, DataSet dataSet, string filename = null, CancellationToken cancellationToken = default)
-		{
-			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, context.RequestAborted))
-			using (var stream = await dataSet.SaveAsExcelAsync(cts.Token).ConfigureAwait(false))
-			{
-				await context.WriteAsync(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename ?? $"{dataSet.Tables[0].TableName}.xlsx", null, 0, null, default, null, null, cts.Token).ConfigureAwait(false);
-			}
-		}
-
-		/// <summary>
-		/// Writes a data-set as Excel document to HTTP output stream directly
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="dataSet"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static Task WriteAsExcelDocumentAsync(this HttpContext context, DataSet dataSet, CancellationToken cancellationToken = default) 
-			=> context.WriteAsExcelDocumentAsync(dataSet, null, cancellationToken);
+			=> context.WriteAsync(fileInfo, null, null, cancellationToken);
 		#endregion
 
 		#region Write binary data to the response body

@@ -3,13 +3,10 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Collections.Specialized;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
-
 using Microsoft.Extensions.Primitives;
 using Microsoft.Extensions.Logging;
-
 using net.vieapps.Components.Caching;
 #endregion
 
@@ -72,9 +69,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="key"></param>
 		/// <returns></returns>
 		public static bool ContainsKey(this ISession session, string key) 
-			=> !string.IsNullOrWhiteSpace(key)
-				? session.Keys.FirstOrDefault(k => k.IsEquals(key.ToLower())) != null
-				: false;
+			=> !string.IsNullOrWhiteSpace(key) && session.Keys.FirstOrDefault(k => k.IsEquals(key.ToLower())) != null;
 
 		/// <summary>
 		/// Sets an object into this context items
@@ -94,8 +89,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="name"></param>
 		/// <returns></returns>
 		public static T GetItem<T>(this HttpContext context, string name)
-			=> context.Items.TryGetValue(name, out var value) && value is T
-				? (T)value
+			=> context.Items.TryGetValue(name, out var value) && value is T val
+				? val
 				: default;
 
 		/// <summary>
