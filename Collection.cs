@@ -43,10 +43,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="key"></param>
 		/// <returns></returns>
 		public static object Get(this ISession session, string key) 
-			=> !string.IsNullOrWhiteSpace(key)
-				? session.TryGetValue(key.ToLower(), out var value)
-					? Helper.Deserialize(value)
-					: null
+			=> !string.IsNullOrWhiteSpace(key) && session.TryGetValue(key.ToLower(), out var value)
+				? Helper.Deserialize(value)
 				: null;
 
 		/// <summary>
@@ -56,10 +54,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="key"></param>
 		/// <returns></returns>
 		public static T Get<T>(this ISession session, string key) 
-			=> !string.IsNullOrWhiteSpace(key)
-				? session.TryGetValue(key.ToLower(), out var value)
-					? Helper.Deserialize<T>(value)
-					: default
+			=> !string.IsNullOrWhiteSpace(key) &&  session.TryGetValue(key.ToLower(), out var value)
+				? Helper.Deserialize<T>(value)
 				: default;
 
 		/// <summary>
@@ -97,13 +93,13 @@ namespace net.vieapps.Components.Utility
 		/// Converts this dictionary of string values to collection of name and value
 		/// </summary>
 		/// <param name="dictionary"></param>
-		/// <param name="onPreCompleted">The action to run before completed</param>
+		/// <param name="onCompleted">The action to run before completed</param>
 		/// <returns></returns>
-		public static NameValueCollection ToNameValueCollection(this IDictionary<string, StringValues> dictionary, Action<NameValueCollection> onPreCompleted = null)
+		public static NameValueCollection ToNameValueCollection(this IDictionary<string, StringValues> dictionary, Action<NameValueCollection> onCompleted = null)
 		{
 			var nvCollection = new NameValueCollection();
 			dictionary.ForEach(kvp => nvCollection[kvp.Key.ToLower()] = kvp.Value);
-			onPreCompleted?.Invoke(nvCollection);
+			onCompleted?.Invoke(nvCollection);
 			return nvCollection;
 		}
 
@@ -111,21 +107,21 @@ namespace net.vieapps.Components.Utility
 		/// Converts this query string to collection of name and value
 		/// </summary>
 		/// <param name="queryString"></param>
-		/// <param name="onPreCompleted">The action to run before completed</param>
+		/// <param name="onCompleted">The action to run before completed</param>
 		/// <returns></returns>
-		public static NameValueCollection ToNameValueCollection(this QueryString queryString, Action<NameValueCollection> onPreCompleted = null)
-			=> QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToNameValueCollection(onPreCompleted);
+		public static NameValueCollection ToNameValueCollection(this QueryString queryString, Action<NameValueCollection> onCompleted = null)
+			=> QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToNameValueCollection(onCompleted);
 
 		/// <summary>
 		/// Converts this dictionary of string values to dictinary of string
 		/// </summary>
 		/// <param name="dictionary"></param>
-		/// <param name="onPreCompleted">The action to run before completed</param>
+		/// <param name="onCompleted">The action to run before completed</param>
 		/// <returns></returns>
-		public static Dictionary<string, string> ToDictionary(this IDictionary<string, StringValues> dictionary, Action<Dictionary<string, string>> onPreCompleted = null)
+		public static Dictionary<string, string> ToDictionary(this IDictionary<string, StringValues> dictionary, Action<Dictionary<string, string>> onCompleted = null)
 		{
 			var dict = dictionary.ToDictionary(kvp => kvp.Key, kvp => $"{kvp.Value}", StringComparer.OrdinalIgnoreCase);
-			onPreCompleted?.Invoke(dict);
+			onCompleted?.Invoke(dict);
 			return dict;
 		}
 
@@ -133,18 +129,18 @@ namespace net.vieapps.Components.Utility
 		/// Converts this query string to a dictinary of string
 		/// </summary>
 		/// <param name="queryString"></param>
-		/// <param name="onPreCompleted">The action to run before completed</param>
+		/// <param name="onCompleted">The action to run before completed</param>
 		/// <returns></returns>
-		public static Dictionary<string, string> ToDictionary(this QueryString queryString, Action<Dictionary<string, string>> onPreCompleted = null)
-			=> QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToDictionary(onPreCompleted);
+		public static Dictionary<string, string> ToDictionary(this QueryString queryString, Action<Dictionary<string, string>> onCompleted = null)
+			=> QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToDictionary(onCompleted);
 
 		/// <summary>
 		/// Converts this header to a dictinary of string
 		/// </summary>
 		/// <param name="header"></param>
-		/// <param name="onPreCompleted">The action to run before completed</param>
+		/// <param name="onCompleted">The action to run before completed</param>
 		/// <returns></returns>
-		public static Dictionary<string, string> ToDictionary(this IHeaderDictionary header, Action<Dictionary<string, string>> onPreCompleted = null)
-			=> (header as IDictionary<string, StringValues>).ToDictionary(onPreCompleted);
+		public static Dictionary<string, string> ToDictionary(this IHeaderDictionary header, Action<Dictionary<string, string>> onCompleted = null)
+			=> (header as IDictionary<string, StringValues>).ToDictionary(onCompleted);
 	}
 }
