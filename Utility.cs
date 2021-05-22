@@ -587,7 +587,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="headers">The headers</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, Stream stream, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
+		public static async Task WriteAsync(this HttpContext context, Stream stream, Dictionary<string, string> headers, List<Cookie> cookies = null, CancellationToken cancellationToken = default)
 		{
 			// check ETag for supporting resumeable downloaders
 			var eTag = headers?.FirstOrDefault(kvp => kvp.Key.IsEquals("ETag")).Value;
@@ -648,6 +648,9 @@ namespace net.vieapps.Components.Utility
 
 			context.SetResponseHeaders(flushAsPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers);
 
+			// cookies
+			cookies?.ForEach(cookie => context.Response.Cookies.Append(cookie.Name, cookie.Value));
+
 			// jump to requested position
 			if (flushAsPartialContent && startBytes > 0)
 				stream.Seek(startBytes, SeekOrigin.Begin);
@@ -673,6 +676,16 @@ namespace net.vieapps.Components.Utility
 				count++;
 			}
 		}
+
+		/// <summary>
+		/// Writes the stream to the output response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="stream">The stream to write</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, Stream stream, CancellationToken cancellationToken)
+			=> context.WriteAsync(stream, null, null, cancellationToken);
 
 		/// <summary>
 		/// Writes the stream to the output response body
@@ -717,7 +730,7 @@ namespace net.vieapps.Components.Utility
 				headers["X-Correlation-ID"] = correlationID;
 
 			// write
-			return context.WriteAsync(stream, headers, cancellationToken);
+			return context.WriteAsync(stream, headers, null, cancellationToken);
 		}
 
 		/// <summary>
@@ -849,7 +862,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, ArraySegment<byte> buffer, CancellationToken cancellationToken = default)
-			=> context.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken);
+			=> context.WriteAsync(buffer.ToBytes(), cancellationToken);
 
 		/// <summary>
 		/// Writes binary data to the response body
@@ -901,7 +914,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, string text, Encoding encoding = null, CancellationToken cancellationToken = default)
-			=> context.WriteAsync(text.ToBytes(encoding).ToArraySegment(), cancellationToken);
+			=> context.WriteAsync(text.ToBytes(encoding), cancellationToken);
 
 		/// <summary>
 		/// Writes the given text to the response body
