@@ -466,7 +466,7 @@ namespace net.vieapps.Components.Utility
 			=> context.Request.Body.ReadAllAsync(cancellationToken);
 		#endregion
 
-		#region Response helpers: set headers, flush, complete, redirect, ...
+		#region Response helpers: set headers, flush, redirect, ...
 		/// <summary>
 		/// Sets the approriate headers of response
 		/// </summary>
@@ -812,7 +812,6 @@ namespace net.vieapps.Components.Utility
 				throw new FileNotFoundException($"Not found{(fileInfo != null ? $" [{fileInfo.Name}]" : "")}");
 
 			using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true))
-			{
 				await context.WriteAsync(
 					stream,
 					contentType ?? fileInfo.GetMimeType(),
@@ -825,7 +824,6 @@ namespace net.vieapps.Components.Utility
 					correlationID,
 					cancellationToken
 				).ConfigureAwait(false);
-			}
 		}
 
 		/// <summary>
