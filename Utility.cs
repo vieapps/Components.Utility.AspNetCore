@@ -668,7 +668,7 @@ namespace net.vieapps.Components.Utility
 
 			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
 			{
-				["Content-Length"] = $"{(endBytes - startBytes) + 1}"
+				["Content-Length"] = $"{endBytes - startBytes + 1}"
 			};
 
 			if (flushAsPartialContent && startBytes > -1)

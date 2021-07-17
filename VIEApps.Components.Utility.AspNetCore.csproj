@@ -52,13 +52,13 @@
 		<PackageReference Include="Microsoft.AspNetCore.Diagnostics" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Http" Version="2.2.2" />
 		<PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.2.0" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="5.0.1" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="5.0.2" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)' != 'true'">
-		<PackageReference Include="VIEApps.Components.Caching" Version="10.4.2106.1" />
-		<PackageReference Include="VIEApps.Components.Security" Version="10.4.2106.1" />
-		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.4.2106.1" />
+		<PackageReference Include="VIEApps.Components.Caching" Version="10.4.2107.2" />
+		<PackageReference Include="VIEApps.Components.Security" Version="10.4.2107.2" />
+		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.4.2107.2" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)' == 'true'">
