@@ -1060,6 +1060,23 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="statusCode"></param>
+		/// <param name="body"></param>
+		public static void ShowHttpError(this HttpContext context, int statusCode, string body)
+		{
+			// update into context to use at status page middleware
+			context.SetItem("StatusCode", statusCode);
+			context.SetItem("ContentType", "text/html");
+			context.SetItem("Body", body);
+
+			// set status code to raise status page middleware
+			context.Response.StatusCode = statusCode;
+		}
+
+		/// <summary>
+		/// Shows HTTP error as HTML
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="statusCode"></param>
 		/// <param name="message"></param>
 		/// <param name="type"></param>
 		/// <param name="correlationID"></param>
@@ -1067,14 +1084,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="showStack"></param>
 		public static void ShowHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, string stack = null, bool showStack = true)
 		{
-			// update into context to use at status page middleware
 			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
-			context.SetItem("StatusCode", statusCode);
-			context.SetItem("ContentType", "text/html");
-			context.SetItem("Body", context.GetHttpStatusCodeBody(statusCode, message, type, correlationID, stack, showStack));
-
-			// set status code to raise status page middleware
-			context.Response.StatusCode = statusCode;
+			context.ShowHttpError(statusCode, context.GetHttpStatusCodeBody(statusCode, message, type, correlationID, stack, showStack));
 		}
 
 		/// <summary>
@@ -1112,32 +1123,13 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="statusCode"></param>
-		/// <param name="message"></param>
-		/// <param name="type"></param>
-		/// <param name="correlationID"></param>
-		/// <param name="stack"></param>
-		public static void WriteHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, JArray stack = null)
+		/// <param name="body"></param>
+		public static void WriteHttpError(this HttpContext context, int statusCode, JToken body)
 		{
-			// prepare
-			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
-			var json = new JObject
-			{
-				{ "Message", message },
-				{ "Type", type },
-				{ "Verb", context.Request.Method },
-				{ "Code", statusCode }
-			};
-
-			if (!string.IsNullOrWhiteSpace(correlationID))
-				json["CorrelationID"] = correlationID;
-
-			if (stack != null)
-				json["StackTrace"] = stack;
-
 			// update into context to use at status page middleware
 			context.SetItem("StatusCode", statusCode);
 			context.SetItem("ContentType", "application/json");
-			context.SetItem("Body", json.ToString(Formatting.Indented));
+			context.SetItem("Body", body.ToString(Formatting.Indented));
 
 			// set status code to raise status page middleware
 			context.Response.StatusCode = statusCode;
@@ -1151,35 +1143,57 @@ namespace net.vieapps.Components.Utility
 		/// <param name="message"></param>
 		/// <param name="type"></param>
 		/// <param name="correlationID"></param>
+		/// <param name="stacks"></param>
+		public static void WriteHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, JArray stacks = null)
+		{
+			// prepare
+			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
+			var body = new JObject
+			{
+				{ "Message", message },
+				{ "Type", type },
+				{ "Verb", context.Request.Method },
+				{ "Code", statusCode }
+			};
+
+			if (stacks != null)
+				body["StackTrace"] = stacks;
+
+			if (!string.IsNullOrWhiteSpace(correlationID))
+				body["CorrelationID"] = correlationID;
+
+			// write error
+			context.WriteHttpError(statusCode, body);
+		}
+
+		/// <summary>
+		/// Writes HTTP error as JSON
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="statusCode"></param>
+		/// <param name="message"></param>
+		/// <param name="type"></param>
+		/// <param name="correlationID"></param>
 		/// <param name="exception"></param>
 		/// <param name="showStack"></param>
 		public static void WriteHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID, Exception exception, bool showStack = true)
+			=> context.WriteHttpError(statusCode, message, type, correlationID, showStack ? exception?.GetStacks() : null);
+
+		/// <summary>
+		/// Gets the collection of stack trace
+		/// </summary>
+		/// <param name="exception"></param>
+		/// <returns></returns>
+		public static JArray GetStacks(this Exception exception)
 		{
-			JArray stack = null;
-			if (exception != null && showStack)
+			var stacks = new JArray { $"{exception.Message} [{exception.GetType()}] {exception.StackTrace}" };
+			var inner = exception.InnerException;
+			while (inner != null)
 			{
-				stack = new JArray
-				{
-					new JObject
-					{
-						{ "Message", exception.Message },
-						{ "Type", exception.GetType().ToString() },
-						{ "Stack", exception.StackTrace }
-					}
-				};
-				var inner = exception.InnerException;
-				while (inner != null)
-				{
-					stack.Add(new JObject
-					{
-						{ "Message", inner.Message },
-						{ "Type", inner.GetType().ToString() },
-						{ "Stack", inner.StackTrace }
-					});
-					inner = inner.InnerException;
-				}
+				stacks.Add($"{inner.Message} [{inner.GetType()}] {inner.StackTrace}");
+				inner = inner.InnerException;
 			}
-			context.WriteHttpError(statusCode, message, type, correlationID, stack);
+			return stacks;
 		}
 		#endregion
 
