@@ -1061,12 +1061,15 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="statusCode"></param>
 		/// <param name="body"></param>
-		public static void ShowHttpError(this HttpContext context, int statusCode, string body)
+		/// <param name="headers"></param>
+		public static void ShowError(this HttpContext context, int statusCode, string body, Dictionary<string, string> headers = null)
 		{
 			// update into context to use at status page middleware
 			context.SetItem("StatusCode", statusCode);
 			context.SetItem("ContentType", "text/html");
 			context.SetItem("Body", body);
+			if (headers != null && headers.Any())
+				context.SetItem("Headers", headers);
 
 			// set status code to raise status page middleware
 			context.Response.StatusCode = statusCode;
@@ -1082,10 +1085,10 @@ namespace net.vieapps.Components.Utility
 		/// <param name="correlationID"></param>
 		/// <param name="stack"></param>
 		/// <param name="showStack"></param>
-		public static void ShowHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, string stack = null, bool showStack = true)
+		public static void ShowError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, string stack = null, bool showStack = true)
 		{
 			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
-			context.ShowHttpError(statusCode, context.GetHttpStatusCodeBody(statusCode, message, type, correlationID, stack, showStack));
+			context.ShowError(statusCode, context.GetHttpStatusCodeBody(statusCode, message, type, correlationID, stack, showStack));
 		}
 
 		/// <summary>
@@ -1098,7 +1101,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="correlationID"></param>
 		/// <param name="ex"></param>
 		/// <param name="showStack"></param>
-		public static void ShowHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID, Exception ex, bool showStack = true)
+		public static void ShowError(this HttpContext context, int statusCode, string message, string type, string correlationID, Exception ex, bool showStack = true)
 		{
 			var stack = string.Empty;
 			if (ex != null && showStack)
@@ -1113,7 +1116,7 @@ namespace net.vieapps.Components.Utility
 					counter++;
 				}
 			}
-			context.ShowHttpError(statusCode, message, type, correlationID, stack, showStack);
+			context.ShowError(statusCode, message, type, correlationID, stack, showStack);
 		}
 		#endregion
 
@@ -1124,12 +1127,15 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="statusCode"></param>
 		/// <param name="body"></param>
-		public static void WriteHttpError(this HttpContext context, int statusCode, JToken body)
+		/// <param name="headers"></param>
+		public static void WriteError(this HttpContext context, int statusCode, JToken body, Dictionary<string, string> headers = null)
 		{
 			// update into context to use at status page middleware
 			context.SetItem("StatusCode", statusCode);
 			context.SetItem("ContentType", "application/json");
 			context.SetItem("Body", body.ToString(Formatting.Indented));
+			if (headers != null && headers.Any())
+				context.SetItem("Headers", headers);
 
 			// set status code to raise status page middleware
 			context.Response.StatusCode = statusCode;
@@ -1144,7 +1150,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="type"></param>
 		/// <param name="correlationID"></param>
 		/// <param name="stacks"></param>
-		public static void WriteHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, JArray stacks = null)
+		public static void WriteError(this HttpContext context, int statusCode, string message, string type, string correlationID = null, JArray stacks = null)
 		{
 			// prepare
 			statusCode = statusCode < 1 ? (int)HttpStatusCode.InternalServerError : statusCode;
@@ -1163,7 +1169,7 @@ namespace net.vieapps.Components.Utility
 				body["CorrelationID"] = correlationID;
 
 			// write error
-			context.WriteHttpError(statusCode, body);
+			context.WriteError(statusCode, body);
 		}
 
 		/// <summary>
@@ -1176,8 +1182,8 @@ namespace net.vieapps.Components.Utility
 		/// <param name="correlationID"></param>
 		/// <param name="exception"></param>
 		/// <param name="showStack"></param>
-		public static void WriteHttpError(this HttpContext context, int statusCode, string message, string type, string correlationID, Exception exception, bool showStack = true)
-			=> context.WriteHttpError(statusCode, message, type, correlationID, showStack ? exception?.GetStacks() : null);
+		public static void WriteError(this HttpContext context, int statusCode, string message, string type, string correlationID, Exception exception, bool showStack = true)
+			=> context.WriteError(statusCode, message, type, correlationID, showStack ? exception?.GetStacks() : null);
 
 		/// <summary>
 		/// Gets the collection of stack trace
