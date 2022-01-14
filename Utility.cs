@@ -109,7 +109,7 @@ namespace net.vieapps.Components.Utility
 				html += $"<div>Stack:</div>\r\n<blockquote>{stack.Replace("<", "&lt;").Replace(">", "&gt;").Replace("\n", "<br/>").Replace("\r", "").Replace("\t", "")}</blockquote>\r\n";
 			html += $"<hr/>\r\n"
 				+ $"<div>{(!string.IsNullOrWhiteSpace(correlationID) ? $"Correlation ID: {correlationID} - " : "")}"
-				+ $"Powered by {context.GetServerName()} v{Assembly.GetEntryAssembly().GetVersion(false)}</div>\r\n"
+				+ $"Powered by {context.GetServerName()} v{Assembly.GetExecutingAssembly().GetVersion(false)}</div>\r\n"
 				+ "</body>\r\n</html>";
 			return html;
 		}
