@@ -113,7 +113,7 @@ namespace net.vieapps.Components.Utility
 			=> QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToNameValueCollection(onCompleted);
 
 		/// <summary>
-		/// Converts this dictionary of string values to dictinary of string
+		/// Converts this dictionary of string values to dictionary of string
 		/// </summary>
 		/// <param name="dictionary"></param>
 		/// <param name="onCompleted">The action to run before completed</param>
@@ -126,7 +126,7 @@ namespace net.vieapps.Components.Utility
 		}
 
 		/// <summary>
-		/// Converts this query string to a dictinary of string
+		/// Converts this query string to a dictionary of string
 		/// </summary>
 		/// <param name="queryString"></param>
 		/// <param name="onCompleted">The action to run before completed</param>
@@ -135,7 +135,7 @@ namespace net.vieapps.Components.Utility
 			=> QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToDictionary(onCompleted);
 
 		/// <summary>
-		/// Converts this header to a dictinary of string
+		/// Converts this header to a dictionary of string
 		/// </summary>
 		/// <param name="header"></param>
 		/// <param name="onCompleted">The action to run before completed</param>

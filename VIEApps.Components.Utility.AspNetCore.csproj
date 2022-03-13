@@ -32,7 +32,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../</PackageOutputPath>
 		<PackageTags>utility;aspnetcore;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>.NET 6.0</PackageReleaseNotes>
+		<PackageReleaseNotes>Latest components</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.Utility.AspNetCore</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -56,9 +56,9 @@
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)' != 'true'">
-		<PackageReference Include="VIEApps.Components.Caching" Version="10.5.2201.1" />
-		<PackageReference Include="VIEApps.Components.Security" Version="10.5.2201.1" />
-		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.5.2201.1" />
+		<PackageReference Include="VIEApps.Components.Caching" Version="10.5.2203.3" />
+		<PackageReference Include="VIEApps.Components.Security" Version="10.5.2203.3" />
+		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.5.2203.3" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)' == 'true'">
