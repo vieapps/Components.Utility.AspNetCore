@@ -47,18 +47,25 @@
 		<None Visible="false" Include="Icon.png" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
+	<ItemGroup Condition="'$(TargetFramework)' == 'net5.0'">
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="5.0.2" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' != 'net5.0'">
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="6.0.0" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.Authentication" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Diagnostics" Version="2.2.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Http" Version="2.2.2" />
 		<PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.2.0" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="6.0.0" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)' != 'true'">
-		<PackageReference Include="VIEApps.Components.Caching" Version="10.5.2203.3" />
-		<PackageReference Include="VIEApps.Components.Security" Version="10.5.2203.3" />
-		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.5.2203.3" />
+		<PackageReference Include="VIEApps.Components.Caching" Version="10.5.2203.4" />
+		<PackageReference Include="VIEApps.Components.Security" Version="10.5.2203.4" />
+		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.5.2203.4" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)' == 'true'">
