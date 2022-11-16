@@ -628,44 +628,44 @@ namespace net.vieapps.Components.Utility
 			var flushAsPartialContent = false;
 			var totalBytes = stream.Length;
 			long startBytes = 0, endBytes = totalBytes - 1;
-			if (!string.IsNullOrWhiteSpace(context.Request.Headers["Range"].First()))
-			{
-				var requestedRange = context.Request.Headers["Range"].First();
-				var range = requestedRange.Split(new[] { '=', '-' });
+			var requestedRange = context.Request.Headers["Range"].First();
 
-				startBytes = range[1].CastAs<long>();
+			if (!string.IsNullOrWhiteSpace(requestedRange))
+			{
+				flushAsPartialContent = true;
+				var range = requestedRange.ToList("=").Last().ToList("-");
+
+				startBytes = range[0].As<long>();
 				if (startBytes >= totalBytes)
 				{
 					context.SetResponseHeaders((int)HttpStatusCode.PreconditionFailed, null, 0, "private", null);
-					await context.FlushAsync(cancellationToken).ConfigureAwait(false);
 					return;
 				}
-
-				flushAsPartialContent = true;
 
 				if (startBytes < 0)
 					startBytes = 0;
 
-				try
-				{
-					endBytes = range[2].CastAs<long>();
-				}
-				catch { }
+				if (range.Count > 1)
+					try
+					{
+						endBytes = range[1].As<long>();
+					}
+					catch { }
 
 				if (endBytes > totalBytes - 1)
 					endBytes = totalBytes - 1;
 			}
 
-			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
-			{
-				["Content-Length"] = $"{endBytes - startBytes + 1}"
-			};
-
-			if (flushAsPartialContent && startBytes > -1)
-				headers["Content-Range"] = $"bytes {startBytes}-{endBytes}/{totalBytes}";
-
+			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
 			if (!string.IsNullOrWhiteSpace(eTag))
 				headers["Accept-Ranges"] = "bytes";
+
+			if (flushAsPartialContent)
+			{
+				headers["Content-Length"] = $"{endBytes - startBytes + 1}";
+				if (startBytes > -1)
+					headers["Content-Range"] = $"bytes {startBytes}-{endBytes}/{totalBytes}";
+			}
 
 			// update headers & cookies
 			context.SetResponseHeaders(flushAsPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers);
@@ -685,7 +685,7 @@ namespace net.vieapps.Components.Utility
 			while (count < total)
 			{
 				var read = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-				await context.Response.Body.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
+				await context.Response.Body.WriteAsync(buffer.Take(0, read), cancellationToken).ConfigureAwait(false);
 				await context.Response.Body.FlushAsync(cancellationToken).ConfigureAwait(false);
 				count++;
 			}
