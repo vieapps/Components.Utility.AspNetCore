@@ -90,6 +90,19 @@ namespace net.vieapps.Components.Utility
 				: default;
 
 		/// <summary>
+		/// Converts this dictionary of string values to dictionary of string
+		/// </summary>
+		/// <param name="dictionary"></param>
+		/// <param name="onCompleted">The action to run before completed</param>
+		/// <returns></returns>
+		public static Dictionary<string, string> ToDictionary(this IDictionary<string, StringValues> dictionary, Action<Dictionary<string, string>> onCompleted = null)
+		{
+			var dict = dictionary.ToDictionary(kvp => kvp.Key.ToLower(), kvp => kvp.Value.Where(@string => @string != null).Select(@string => @string.AsciiDecode()).Join(","), StringComparer.OrdinalIgnoreCase);
+			onCompleted?.Invoke(dict);
+			return dict;
+		}
+
+		/// <summary>
 		/// Converts this dictionary of string values to collection of name and value
 		/// </summary>
 		/// <param name="dictionary"></param>
@@ -98,32 +111,28 @@ namespace net.vieapps.Components.Utility
 		public static NameValueCollection ToNameValueCollection(this IDictionary<string, StringValues> dictionary, Action<NameValueCollection> onCompleted = null)
 		{
 			var nvCollection = new NameValueCollection();
-			dictionary.ForEach(kvp => nvCollection[kvp.Key.ToLower()] = kvp.Value);
+			dictionary.ToDictionary(dict => dict.ForEach(kvp => nvCollection[kvp.Key] = kvp.Value));
 			onCompleted?.Invoke(nvCollection);
 			return nvCollection;
 		}
 
 		/// <summary>
-		/// Converts this query string to collection of name and value
+		/// Converts this header to a dictionary of string
 		/// </summary>
-		/// <param name="queryString"></param>
+		/// <param name="header"></param>
 		/// <param name="onCompleted">The action to run before completed</param>
 		/// <returns></returns>
-		public static NameValueCollection ToNameValueCollection(this QueryString queryString, Action<NameValueCollection> onCompleted = null)
-			=> QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToNameValueCollection(onCompleted);
+		public static Dictionary<string, string> ToDictionary(this IHeaderDictionary header, Action<Dictionary<string, string>> onCompleted = null)
+			=> (header as IDictionary<string, StringValues>).ToDictionary(onCompleted);
 
 		/// <summary>
-		/// Converts this dictionary of string values to dictionary of string
+		/// Converts this header to collection of name and value
 		/// </summary>
-		/// <param name="dictionary"></param>
+		/// <param name="header"></param>
 		/// <param name="onCompleted">The action to run before completed</param>
 		/// <returns></returns>
-		public static Dictionary<string, string> ToDictionary(this IDictionary<string, StringValues> dictionary, Action<Dictionary<string, string>> onCompleted = null)
-		{
-			var dict = dictionary.ToDictionary(kvp => kvp.Key, kvp => $"{kvp.Value}", StringComparer.OrdinalIgnoreCase);
-			onCompleted?.Invoke(dict);
-			return dict;
-		}
+		public static NameValueCollection ToNameValueCollection(this IHeaderDictionary header, Action<NameValueCollection> onCompleted = null)
+			=> (header as IDictionary<string, StringValues>).ToNameValueCollection(onCompleted);
 
 		/// <summary>
 		/// Converts this query string to a dictionary of string
@@ -135,12 +144,12 @@ namespace net.vieapps.Components.Utility
 			=> QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToDictionary(onCompleted);
 
 		/// <summary>
-		/// Converts this header to a dictionary of string
+		/// Converts this query string to collection of name and value
 		/// </summary>
-		/// <param name="header"></param>
+		/// <param name="queryString"></param>
 		/// <param name="onCompleted">The action to run before completed</param>
 		/// <returns></returns>
-		public static Dictionary<string, string> ToDictionary(this IHeaderDictionary header, Action<Dictionary<string, string>> onCompleted = null)
-			=> (header as IDictionary<string, StringValues>).ToDictionary(onCompleted);
+		public static NameValueCollection ToNameValueCollection(this QueryString queryString, Action<NameValueCollection> onCompleted = null)
+			=> QueryHelpers.ParseQuery(queryString.ToUriComponent()).ToNameValueCollection(onCompleted);
 	}
 }

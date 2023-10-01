@@ -207,7 +207,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static Uri GetUri(this HttpContext context)
-			=> new($"{context.Request.Scheme}://{context.Request.Host}{context.Request.PathBase}{context.Request.Path}{context.Request.QueryString}");
+			=> new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.PathBase}{context.Request.Path}{context.Request.QueryString}");
 
 		/// <summary>
 		/// Gets the original Uniform Resource Identifier (URI) of the request that was sent by the client
@@ -315,7 +315,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <returns></returns>
 		public static IPEndPoint GetLocalEndPoint(this HttpContext context)
-			=> new(context.Connection.LocalIpAddress, context.Connection.LocalPort);
+			=> new IPEndPoint(context.Connection.LocalIpAddress, context.Connection.LocalPort);
 
 		/// <summary>
 		/// Gets the remote endpoint
@@ -685,7 +685,11 @@ namespace net.vieapps.Components.Utility
 			while (count < total)
 			{
 				var read = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+#if NETSTANDARD2_0
+				await context.Response.Body.WriteAsync(buffer, 0, read).WithCancellationToken(cancellationToken).ConfigureAwait(false);
+#else
 				await context.Response.Body.WriteAsync(buffer.Take(0, read), cancellationToken).ConfigureAwait(false);
+#endif
 				await context.Response.Body.FlushAsync(cancellationToken).ConfigureAwait(false);
 				count++;
 			}
@@ -796,19 +800,19 @@ namespace net.vieapps.Components.Utility
 			if (fileInfo == null || !fileInfo.Exists)
 				throw new FileNotFoundException($"Not found{(fileInfo != null ? $" [{fileInfo.Name}]" : "")}");
 
-			using var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true);
-			await context.WriteAsync(
-				stream,
-				contentType ?? fileInfo.GetMimeType(),
-				contentDisposition,
-				eTag,
-				string.IsNullOrWhiteSpace(eTag) ? 0 : lastModified > 0 ? lastModified : fileInfo.LastWriteTime.ToUnixTimestamp(),
-				string.IsNullOrWhiteSpace(eTag) ? null : cacheControl ?? "public",
-				string.IsNullOrWhiteSpace(eTag) ? TimeSpan.Zero : expires != TimeSpan.Zero && expires.Ticks > 0 ? expires : TimeSpan.FromDays(366),
-				headers,
-				correlationID,
-				cancellationToken
-			).ConfigureAwait(false);
+			using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true))
+				await context.WriteAsync(
+					stream,
+					contentType ?? fileInfo.GetMimeType(),
+					contentDisposition,
+					eTag,
+					string.IsNullOrWhiteSpace(eTag) ? 0 : lastModified > 0 ? lastModified : fileInfo.LastWriteTime.ToUnixTimestamp(),
+					string.IsNullOrWhiteSpace(eTag) ? null : cacheControl ?? "public",
+					string.IsNullOrWhiteSpace(eTag) ? TimeSpan.Zero : expires != TimeSpan.Zero && expires.Ticks > 0 ? expires : TimeSpan.FromDays(366),
+					headers,
+					correlationID,
+					cancellationToken
+				).ConfigureAwait(false);
 		}
 
 		/// <summary>
@@ -859,11 +863,15 @@ namespace net.vieapps.Components.Utility
 		/// <param name="headers"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, byte[] buffer, int offset, int count, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
+		public static Task WriteAsync(this HttpContext context, byte[] buffer, int offset, int count, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
 		{
 			if (headers != null && headers.Any())
 				context.SetResponseHeaders((int)HttpStatusCode.OK, headers);
-			await context.Response.Body.WriteAsync(buffer.AsMemory(offset > -1 ? offset : 0, count > 0 ? count : buffer.Length), cancellationToken).ConfigureAwait(false);
+#if NETSTANDARD2_0
+			return context.Response.Body.WriteAsync(buffer, offset > -1 ? offset : 0, count > 0 ? count : buffer.Length).WithCancellationToken(cancellationToken);
+#else
+			return context.Response.Body.WriteAsync(buffer.AsMemory(offset > -1 ? offset : 0, count > 0 ? count : buffer.Length), cancellationToken).AsTask();
+#endif
 		}
 
 		/// <summary>
@@ -926,8 +934,8 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static async Task WriteAsync(this HttpContext context, byte[] buffer, string contentType, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default, Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default)
 		{
-			using var stream = buffer.ToMemoryStream();
-			await context.WriteAsync(stream, contentType, contentDisposition, eTag, lastModified, cacheControl, expires, headers, correlationID, cancellationToken).ConfigureAwait(false);
+			using (var stream = buffer.ToMemoryStream())
+				await context.WriteAsync(stream, contentType, contentDisposition, eTag, lastModified, cacheControl, expires, headers, correlationID, cancellationToken).ConfigureAwait(false);
 		}
 
 		/// <summary>
@@ -1223,7 +1231,7 @@ namespace net.vieapps.Components.Utility
 					headers["Content-Encoding"] = encoding;
 			}
 
-			if (context.HttpContext.Items.ContainsKey("PipelineStopwatch") && context.HttpContext.Items["PipelineStopwatch"] is Stopwatch stopwatch)
+			if (context.HttpContext.Items.TryGetValue("PipelineStopwatch", out object value) && value is Stopwatch stopwatch)
 			{
 				stopwatch.Stop();
 				headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
