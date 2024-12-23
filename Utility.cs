@@ -43,7 +43,7 @@ namespace net.vieapps.Components.Utility
 		/// <summary>
 		/// Gets the size for buffering when read/write a stream (default is 64K)
 		/// </summary>
-		public static int BufferSize { get; } = 1024 * 64;
+		public static int BufferSize => 1024 * 64;
 
 		#region Extensions for working with environments
 		/// <summary>
@@ -686,9 +686,9 @@ namespace net.vieapps.Components.Utility
 			{
 				var read = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
 #if NETSTANDARD2_0
-				await context.Response.Body.WriteAsync(buffer, 0, read).WithCancellationToken(cancellationToken).ConfigureAwait(false);
+				await context.Response.Body.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
 #else
-				await context.Response.Body.WriteAsync(buffer.Take(0, read), cancellationToken).ConfigureAwait(false);
+				await context.Response.Body.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
 #endif
 				await context.Response.Body.FlushAsync(cancellationToken).ConfigureAwait(false);
 				count++;
@@ -863,15 +863,10 @@ namespace net.vieapps.Components.Utility
 		/// <param name="headers"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, byte[] buffer, int offset, int count, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
+		public static async Task WriteAsync(this HttpContext context, byte[] buffer, int offset, int count, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
 		{
-			if (headers != null && headers.Any())
-				context.SetResponseHeaders((int)HttpStatusCode.OK, headers);
-#if NETSTANDARD2_0
-			return context.Response.Body.WriteAsync(buffer, offset > -1 ? offset : 0, count > 0 ? count : buffer.Length).WithCancellationToken(cancellationToken);
-#else
-			return context.Response.Body.WriteAsync(buffer.AsMemory(offset > -1 ? offset : 0, count > 0 ? count : buffer.Length), cancellationToken).AsTask();
-#endif
+			using (var stream = (buffer == null ? Array.Empty<byte>() : buffer.Take(offset > -1 ? offset : 0, count > 0 ? count : buffer.Length)).ToMemoryStream())
+				await context.WriteAsync(stream, headers, cancellationToken).ConfigureAwait(false);
 		}
 
 		/// <summary>
@@ -934,7 +929,7 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static async Task WriteAsync(this HttpContext context, byte[] buffer, string contentType, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default, Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default)
 		{
-			using (var stream = buffer.ToMemoryStream())
+			using (var stream = (buffer ?? Array.Empty<byte>()).ToMemoryStream())
 				await context.WriteAsync(stream, contentType, contentDisposition, eTag, lastModified, cacheControl, expires, headers, correlationID, cancellationToken).ConfigureAwait(false);
 		}
 
@@ -956,6 +951,25 @@ namespace net.vieapps.Components.Utility
 		#endregion
 
 		#region Write text data to the response body
+		/// <summary>
+		/// Writes the given text to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="text"></param>
+		/// <param name="headers"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, string text, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
+			=> context.WriteAsync
+			(
+				text?.ToBytes() ?? Array.Empty<byte>(),
+				new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
+				{
+					["Content-Type"] = headers != null && headers.TryGetValue("Content-Type", out var contentType) && !string.IsNullOrWhiteSpace(contentType) ? contentType : "text/html"
+				},
+				cancellationToken
+			);
+
 		/// <summary>
 		/// Writes the given text to the response body
 		/// </summary>
@@ -1014,6 +1028,32 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="json"></param>
 		/// <param name="formatting"></param>
+		/// <param name="headers"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
+			=> context.WriteAsync(json?.ToString(formatting) ?? "{}", new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
+			{
+				["Content-Type"] = headers != null && headers.TryGetValue("Content-Type", out var contentType) && !string.IsNullOrWhiteSpace(contentType) ? contentType : "application/json"
+			}, cancellationToken);
+
+		/// <summary>
+		/// Writes the JSON to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="json"></param>
+		/// <param name="headers"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, JToken json, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
+			=> context.WriteAsync(json, Formatting.None, headers, cancellationToken);
+
+		/// <summary>
+		/// Writes the JSON to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="json"></param>
+		/// <param name="formatting"></param>
 		/// <param name="eTag"></param>
 		/// <param name="lastModified"></param>
 		/// <param name="cacheControl"></param>
@@ -1040,7 +1080,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, JToken json, CancellationToken cancellationToken)
-			=> context.WriteAsync(json, Formatting.None, null, cancellationToken);
+			=> context.WriteAsync(json, Formatting.None, "", cancellationToken);
 		#endregion
 
 		#region Show HTTP error as HTML
