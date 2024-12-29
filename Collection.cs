@@ -84,10 +84,10 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="name"></param>
 		/// <returns></returns>
-		public static T GetItem<T>(this HttpContext context, string name)
+		public static T GetItem<T>(this HttpContext context, string name, T @default = default)
 			=> context.Items.TryGetValue(name, out var value) && value is T val
 				? val
-				: default;
+				: @default;
 
 		/// <summary>
 		/// Converts this dictionary of string values to dictionary of string

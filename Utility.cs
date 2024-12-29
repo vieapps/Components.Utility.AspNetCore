@@ -1,6 +1,5 @@
 ﻿#region Related components
 using System;
-using System.Linq;
 using System.IO;
 using System.Text;
 using System.Net;
@@ -470,11 +469,14 @@ namespace net.vieapps.Components.Utility
 			{
 				["Server"] = context.GetServerName()
 			};
-			if (context.Items.ContainsKey("PipelineStopwatch") && context.Items["PipelineStopwatch"] is Stopwatch stopwatch)
+			if (context.Items.TryGetValue("PipelineStopwatch", out var swatch) && swatch is Stopwatch stopwatch)
 			{
 				stopwatch.Stop();
 				headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
 			}
+			headers.TryGetValue("Content-Type", out var contentType);
+			if (!string.IsNullOrWhiteSpace(contentType) && !contentType.IsEndsWith("; charset=utf-8"))
+				headers["Content-Type"] = $"{contentType}; charset=utf-8";
 
 			// update into context to use at status page middleware
 			context.SetItem("StatusCode", statusCode);
@@ -611,8 +613,11 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static async Task WriteAsync(this HttpContext context, Stream stream, Dictionary<string, string> headers, IEnumerable<Cookie> cookies, CancellationToken cancellationToken)
 		{
+			// prepare headers
+			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+
 			// check ETag for supporting resumeable downloaders
-			var eTag = headers?.FirstOrDefault(kvp => kvp.Key.IsEquals("ETag")).Value;
+			headers.TryGetValue("ETag", out var eTag);
 			if (!string.IsNullOrWhiteSpace(eTag))
 			{
 				var requestETag = context.GetRequestETag();
@@ -625,14 +630,14 @@ namespace net.vieapps.Components.Utility
 			}
 
 			// prepare position for flushing as partial blocks
-			var flushAsPartialContent = false;
+			var asPartialContent = false;
 			var totalBytes = stream.Length;
 			long startBytes = 0, endBytes = totalBytes - 1;
 			var requestedRange = context.Request.Headers["Range"].First();
 
 			if (!string.IsNullOrWhiteSpace(requestedRange))
 			{
-				flushAsPartialContent = true;
+				asPartialContent = true;
 				var range = requestedRange.ToList("=").Last().ToList("-");
 
 				startBytes = range[0].As<long>();
@@ -656,11 +661,10 @@ namespace net.vieapps.Components.Utility
 					endBytes = totalBytes - 1;
 			}
 
-			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
 			if (!string.IsNullOrWhiteSpace(eTag))
 				headers["Accept-Ranges"] = "bytes";
 
-			if (flushAsPartialContent)
+			if (asPartialContent)
 			{
 				headers["Content-Length"] = $"{endBytes - startBytes + 1}";
 				if (startBytes > -1)
@@ -668,11 +672,11 @@ namespace net.vieapps.Components.Utility
 			}
 
 			// update headers & cookies
-			context.SetResponseHeaders(flushAsPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers);
+			context.SetResponseHeaders(asPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers);
 			context.AppendCookies(cookies);
 
 			// read and flush stream data to response stream
-			if (flushAsPartialContent && startBytes > 0)
+			if (asPartialContent && startBytes > 0)
 				stream.Seek(startBytes, SeekOrigin.Begin);
 
 			var size = AspNetCoreUtilityService.BufferSize;
@@ -737,7 +741,7 @@ namespace net.vieapps.Components.Utility
 			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
 
 			if (!string.IsNullOrWhiteSpace(contentType))
-				headers["Content-Type"] = $"{contentType}{(contentType.IsEndsWith("; charset=utf-8") ? "" : "; charset=utf-8")}";
+				headers["Content-Type"] = contentType;
 
 			if (!string.IsNullOrWhiteSpace(contentDisposition))
 				headers["Content-Disposition"] = $"Attachment; Filename=\"{contentDisposition.UrlEncode()}\"";
@@ -801,7 +805,8 @@ namespace net.vieapps.Components.Utility
 				throw new FileNotFoundException($"Not found{(fileInfo != null ? $" [{fileInfo.Name}]" : "")}");
 
 			using (var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, AspNetCoreUtilityService.BufferSize, true))
-				await context.WriteAsync(
+				await context.WriteAsync
+				(
 					stream,
 					contentType ?? fileInfo.GetMimeType(),
 					contentDisposition,
@@ -1032,10 +1037,15 @@ namespace net.vieapps.Components.Utility
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
-			=> context.WriteAsync(json?.ToString(formatting) ?? "{}", new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
-			{
-				["Content-Type"] = headers != null && headers.TryGetValue("Content-Type", out var contentType) && !string.IsNullOrWhiteSpace(contentType) ? contentType : "application/json"
-			}, cancellationToken);
+			=> context.WriteAsync
+			(
+				json?.ToString(formatting) ?? "{}", 
+				new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
+				{
+					["Content-Type"] = headers != null && headers.TryGetValue("Content-Type", out var contentType) && !string.IsNullOrWhiteSpace(contentType) ? contentType : "application/json"
+				},
+				cancellationToken
+			);
 
 		/// <summary>
 		/// Writes the JSON to the response body
@@ -1096,7 +1106,7 @@ namespace net.vieapps.Components.Utility
 			context.SetItem("StatusCode", statusCode);
 			context.SetItem("ContentType", "text/html; charset=utf-8");
 			context.SetItem("Body", body);
-			if (headers != null && headers.Any())
+			if (headers != null && headers.Count > 0)
 				context.SetItem("Headers", headers);
 			context.Response.StatusCode = statusCode;
 		}
@@ -1159,7 +1169,7 @@ namespace net.vieapps.Components.Utility
 			context.SetItem("StatusCode", statusCode);
 			context.SetItem("ContentType", "application/json; charset=utf-8");
 			context.SetItem("Body", body.ToString(Formatting.Indented));
-			if (headers != null && headers.Any())
+			if (headers != null && headers.Count > 0)
 				context.SetItem("Headers", headers);
 			context.Response.StatusCode = statusCode;
 		}
@@ -1236,16 +1246,14 @@ namespace net.vieapps.Components.Utility
 		public static async Task ShowStatusPageAsync(this StatusCodeContext context, Func<int, HttpContext, string> getHtmlBody = null)
 		{
 			// prepare status
-			var statusCode = context.HttpContext.Items.ContainsKey("StatusCode")
-				? context.HttpContext.GetItem<int>("StatusCode")
-				: context.HttpContext.Response.StatusCode;
+			var statusCode = context.HttpContext.GetItem("StatusCode", context.HttpContext.Response.StatusCode);
 
 			// prepare content-type & body string
-			var contentType = context.HttpContext.GetItem<string>("ContentType") ?? "text/plain";
-			var bodystr = context.HttpContext.GetItem<string>("Body") ?? $"Error {statusCode}";
+			var contentType = context.HttpContext.GetItem("ContentType", "text/plain");
+			var bodystr = context.HttpContext.GetItem("Body", $"Error {statusCode}");
 			if ("text/plain".Equals(contentType) && $"Error {statusCode}".Equals(bodystr))
 			{
-				contentType = "text/html";
+				contentType = "text/html; charset=utf-8";
 				bodystr = getHtmlBody?.Invoke(statusCode, context.HttpContext) ?? context.HttpContext.GetHttpStatusCodeBody(statusCode);
 			}
 
@@ -1257,16 +1265,16 @@ namespace net.vieapps.Components.Utility
 				body = body.Compress(encoding);
 
 			// prepare headers
-			var headers = context.HttpContext.GetItem<Dictionary<string, string>>("Headers") ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			var headers = context.HttpContext.GetItem("Headers", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
 			headers["Access-Control-Allow-Origin"] = "*";
 			headers["Server"] = context.HttpContext.GetServerName();
 			if (!headers.ContainsKey("Cache-Control"))
-				headers["Cache-Control"] = context.HttpContext.GetItem<string>("CacheControl") ?? "private, no-store, no-cache";
+				headers["Cache-Control"] = context.HttpContext.GetItem("CacheControl", "private, no-store, no-cache");
 
 			if (body.Length > 0)
 			{
 				headers["Content-Length"] = $"{body.Length}";
-				headers["Content-Type"] = $"{contentType}{(contentType.IsEndsWith("; charset=utf-8") ? "" : "; charset=utf-8")}";
+				headers["Content-Type"] = contentType;
 				if (!string.IsNullOrWhiteSpace(encoding))
 					headers["Content-Encoding"] = encoding;
 			}
@@ -1276,6 +1284,14 @@ namespace net.vieapps.Components.Utility
 				stopwatch.Stop();
 				headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
 			}
+
+			var correlationID = context.HttpContext.GetItem<string>("CorrelationID");
+			if (!string.IsNullOrWhiteSpace(correlationID))
+				headers["X-Correlation-ID"] = correlationID;
+
+			var nodeID = context.HttpContext.GetItem<string>("NodeID");
+			if (!string.IsNullOrWhiteSpace(nodeID))
+				headers["X-Node"] = nodeID;
 
 			// response
 			headers.ForEach(kvp =>
@@ -1288,7 +1304,7 @@ namespace net.vieapps.Components.Utility
 			});
 			context.HttpContext.Response.StatusCode = statusCode;
 			if (body.Length > 0)
-				await context.HttpContext.WriteAsync(body).ConfigureAwait(false);
+				await context.HttpContext.Response.Body.WriteAsync(body).ConfigureAwait(false);
 			await context.HttpContext.FlushAsync().ConfigureAwait(false);
 		}
 
