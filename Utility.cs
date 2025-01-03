@@ -197,6 +197,15 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="name">The string that presents name of parameter want to get</param>
 		/// <returns></returns>
+		public static bool TryGetParameter(this HttpContext context, string name, out string value)
+			=> context.TryGetHeaderParameter(name, out value) || context.TryGetQueryParameter(name, out value);
+
+		/// <summary>
+		/// Gets the value of a parameter (first from header, if not found then get from query string)
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="name">The string that presents name of parameter want to get</param>
+		/// <returns></returns>
 		public static string GetParameter(this HttpContext context, string name)
 			=> context.GetHeaderParameter(name) ?? context.GetQueryParameter(name);
 
@@ -467,7 +476,8 @@ namespace net.vieapps.Components.Utility
 			// prepare
 			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
 			{
-				["Server"] = context.GetServerName()
+				["Server"] = context.GetServerName(),
+				["X-Powered-By"] = $"{context.GetServerName()} v{Assembly.GetExecutingAssembly().GetVersion(false)}"
 			};
 			if (context.Items.TryGetValue("PipelineStopwatch", out var swatch) && swatch is Stopwatch stopwatch)
 			{
