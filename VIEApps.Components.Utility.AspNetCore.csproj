@@ -33,7 +33,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../</PackageOutputPath>
 		<PackageTags>utility;aspnetcore;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Add supported of .NET 9</PackageReleaseNotes>
+		<PackageReleaseNotes>Latest components</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.Utility.AspNetCore</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -53,20 +53,20 @@
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-		<PackageReference Include="Microsoft.AspNetCore.Authentication" Version="2.2.0" />
-		<PackageReference Include="Microsoft.AspNetCore.Diagnostics" Version="2.2.0" />
-		<PackageReference Include="Microsoft.AspNetCore.Http" Version="2.2.2" />
-		<PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.2.0" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication" Version="2.3.0" />
+		<PackageReference Include="Microsoft.AspNetCore.Diagnostics" Version="2.3.0" />
+		<PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.0" />
+		<PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.3.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.3" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)' != 'true'">
-		<PackageReference Include="VIEApps.Components.Caching" Version="10.9.2501.1" />
-		<PackageReference Include="VIEApps.Components.Security" Version="10.9.2501.1" />
-		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.9.2501.1" />
+		<PackageReference Include="VIEApps.Components.Caching" Version="10.9.2504.1" />
+		<PackageReference Include="VIEApps.Components.Security" Version="10.9.2504.1" />
+		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.9.2504.1" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)' == 'true'">

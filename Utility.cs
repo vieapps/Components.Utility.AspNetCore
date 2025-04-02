@@ -210,6 +210,15 @@ namespace net.vieapps.Components.Utility
 			=> context.GetHeaderParameter(name) ?? context.GetQueryParameter(name);
 
 		/// <summary>
+		/// Checks a parameter is existed in header or query string
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="name">The string that presents name of parameter want to get</param>
+		/// <returns></returns>
+		public static bool ContainsKey(this HttpContext context, string name)
+			=> context.Request.Headers.ContainsKey(name) || context.Request.Query.ContainsKey(name);
+
+		/// <summary>
 		/// Gets the original Uniform Resource Identifier (URI) of the request that was sent by the client
 		/// </summary>
 		/// <param name="context"></param>
