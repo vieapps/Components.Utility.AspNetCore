@@ -37,12 +37,30 @@ namespace net.vieapps.Components.Utility
 		/// <summary>
 		/// Gets or Sets the name of server to write into headers
 		/// </summary>
-		public static string ServerName { get; set; } = "VIEApps NGX";
+		public static string ServerName { get; set; } = UtilityService.GetAppSetting("Server:Name", "VIEApps NGX");
+
+		/// <summary>
+		/// Gets or Sets the state to add 'Server' into response header
+		/// </summary>
+		public static bool AddServerNameIntoResponseHeader { get; set; } = "true".IsEquals(UtilityService.GetAppSetting("Server:Headers:Name", "true"));
+
+		/// <summary>
+		/// Gets or Sets the state to add 'X-Powered-By' into response header
+		/// </summary>
+		public static bool AddXPoweredByIntoResponseHeader { get; set; } = "true".IsEquals(UtilityService.GetAppSetting("Server:Headers:XPoweredBy", "true"));
+
+		/// <summary>
+		/// Gets or Sets the state to compress WebSockets' messages (permessage-deflate)
+		/// </summary>
+		public static bool EnableWebSocketCompression { get; set; } = "true".IsEquals(UtilityService.GetAppSetting("Server:WebSockets:Compression", "true"));
 
 		/// <summary>
 		/// Gets the size for buffering when read/write a stream (default is 64K)
 		/// </summary>
 		public static int BufferSize => 1024 * 64;
+
+		static AspNetCoreUtilityService()
+			=> WebSocket.AgentName = $"{AspNetCoreUtilityService.ServerName} WebSockets";
 
 		#region Extensions for working with environments
 		/// <summary>
@@ -483,18 +501,21 @@ namespace net.vieapps.Components.Utility
 		public static void SetResponseHeaders(this HttpContext context, int statusCode, Dictionary<string, string> headers = null)
 		{
 			// prepare
-			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
-			{
-				["Server"] = context.GetServerName(),
-				["X-Powered-By"] = $"{context.GetServerName()} v{Assembly.GetExecutingAssembly().GetVersion(false)}"
-			};
+			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+
+			if (AspNetCoreUtilityService.AddServerNameIntoResponseHeader)
+				headers["Server"] = context.GetServerName();
+
+			if (AspNetCoreUtilityService.AddXPoweredByIntoResponseHeader)
+				headers["X-Powered-By"] = $"{context.GetServerName()} {Assembly.GetCallingAssembly().GetVersion(false)}";
+
 			if (context.Items.TryGetValue("PipelineStopwatch", out var swatch) && swatch is Stopwatch stopwatch)
 			{
 				stopwatch.Stop();
 				headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
 			}
-			headers.TryGetValue("Content-Type", out var contentType);
-			if (!string.IsNullOrWhiteSpace(contentType) && !contentType.IsEndsWith("; charset=utf-8"))
+
+			if (headers.TryGetValue("Content-Type", out var contentType) && !string.IsNullOrWhiteSpace(contentType) && !contentType.IsEndsWith("; charset=utf-8"))
 				headers["Content-Type"] = $"{contentType}; charset=utf-8";
 
 			// update into context to use at status page middleware
@@ -1347,7 +1368,11 @@ namespace net.vieapps.Components.Utility
 		public static async Task WrapAsync(this WebSocket websocket, HttpContext context, Func<HttpContext, Task> whenIsNotWebSocketRequestAsync = null)
 		{
 			if (context.WebSockets.IsWebSocketRequest)
-				await websocket.WrapAsync(await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false), context.GetRequestUri(), context.GetRemoteEndPoint(), context.GetLocalEndPoint(), context.Request.Headers.ToDictionary()).ConfigureAwait(false);
+				await websocket.WrapAsync(await context.WebSockets.AcceptWebSocketAsync(
+#if !NETSTANDARD2_0
+				new WebSocketAcceptContext { DangerousEnableCompression = AspNetCoreUtilityService.EnableWebSocketCompression	}
+#endif
+				).ConfigureAwait(false), context.GetRequestUri(), context.GetRemoteEndPoint(), context.GetLocalEndPoint(), context.Request.Headers.ToDictionary()).ConfigureAwait(false);
 			else if (whenIsNotWebSocketRequestAsync != null)
 				await whenIsNotWebSocketRequestAsync(context).ConfigureAwait(false);
 		}
