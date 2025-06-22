@@ -47,7 +47,12 @@ namespace net.vieapps.Components.Utility
 		/// <summary>
 		/// Gets or Sets the state to add 'X-Powered-By' into response header
 		/// </summary>
-		public static bool AddXPoweredByIntoResponseHeader { get; set; } = "true".IsEquals(UtilityService.GetAppSetting("Server:Headers:XPoweredBy", "true"));
+		public static bool AddPoweredByIntoResponseHeader { get; set; } = "true".IsEquals(UtilityService.GetAppSetting("Server:Headers:PoweredBy", "true"));
+
+		/// <summary>
+		/// Gets or Sets the state to add 'X-Node/X-Svc-Node' into response header
+		/// </summary>
+		public static bool AddNodeIntoResponseHeader { get; set; } = "true".IsEquals(UtilityService.GetAppSetting("Server:Headers:Node", "true"));
 
 		/// <summary>
 		/// Gets or Sets the state to compress WebSockets' messages (permessage-deflate)
@@ -506,8 +511,11 @@ namespace net.vieapps.Components.Utility
 			if (AspNetCoreUtilityService.AddServerNameIntoResponseHeader)
 				headers["Server"] = context.GetServerName();
 
-			if (AspNetCoreUtilityService.AddXPoweredByIntoResponseHeader)
+			if (AspNetCoreUtilityService.AddPoweredByIntoResponseHeader)
 				headers["X-Powered-By"] = $"{context.GetServerName()} {Assembly.GetCallingAssembly().GetVersion(false)}";
+
+			if (!AspNetCoreUtilityService.AddNodeIntoResponseHeader)
+				new[] { "X-Node", "X-Svc-Node", "X-Service-Node" }.ForEach(header => headers.Remove(header));
 
 			if (context.Items.TryGetValue("PipelineStopwatch", out var swatch) && swatch is Stopwatch stopwatch)
 			{
