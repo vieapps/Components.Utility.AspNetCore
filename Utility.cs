@@ -1,8 +1,9 @@
 ﻿#region Related components
 using System;
 using System.IO;
-using System.Text;
 using System.Net;
+using System.Text;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -497,6 +498,8 @@ namespace net.vieapps.Components.Utility
 		#endregion
 
 		#region Response helpers: set headers, flush, redirect, ...
+		static List<string> BeRemovedHeaders { get; } = new[] { "X-Node", "X-Svc-Node", "X-Service-Node" }.ToList();
+
 		/// <summary>
 		/// Sets the approriate headers of response
 		/// </summary>
@@ -515,7 +518,7 @@ namespace net.vieapps.Components.Utility
 				headers["X-Powered-By"] = $"{context.GetServerName()} {Assembly.GetCallingAssembly().GetVersion(false)}";
 
 			if (!AspNetCoreUtilityService.AddNodeIntoResponseHeader)
-				new[] { "X-Node", "X-Svc-Node", "X-Service-Node" }.ForEach(header => headers.Remove(header));
+				AspNetCoreUtilityService.BeRemovedHeaders.ForEach(header => headers.Remove(header));
 
 			if (context.Items.TryGetValue("PipelineStopwatch", out var swatch) && swatch is Stopwatch stopwatch)
 			{
@@ -736,6 +739,8 @@ namespace net.vieapps.Components.Utility
 			var count = 0;
 			while (count < total)
 			{
+				if (cancellationToken.IsCancellationRequested)
+					return;
 				var read = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
 #if NETSTANDARD2_0
 				await context.Response.Body.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
@@ -1244,7 +1249,7 @@ namespace net.vieapps.Components.Utility
 			};
 
 			if (stacks != null)
-				body["StackTrace"] = stacks;
+				body["StackTrace"] = stacks.Select(stack => (stack?.ToString() ?? "").Replace("\r", "").ToArray("\n", true)).SelectMany(stack => stack).ToJArray();
 
 			if (!string.IsNullOrWhiteSpace(correlationID))
 				body["CorrelationID"] = correlationID;
