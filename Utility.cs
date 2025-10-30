@@ -132,7 +132,7 @@ namespace net.vieapps.Components.Utility
 				html += $"<div>Stack:</div>\r\n<blockquote>{stack.Replace("<", "&lt;").Replace(">", "&gt;").Replace("\n", "<br/>").Replace("\r", "").Replace("\t", "")}</blockquote>\r\n";
 			html += $"<hr/>\r\n"
 				+ $"<div>{(!string.IsNullOrWhiteSpace(correlationID) ? $"Correlation ID: {correlationID} - " : "")}"
-				+ $"Powered by {context.GetServerName()} v{Assembly.GetExecutingAssembly().GetVersion(false)}</div>\r\n"
+				+ $"Powered by {context.GetServerName()} v{Assembly.GetCallingAssembly().GetVersion(false)}</div>\r\n"
 				+ "</body>\r\n</html>";
 			return html;
 		}
@@ -410,13 +410,15 @@ namespace net.vieapps.Components.Utility
 		public static string GetContentEncoding(this HttpContext context)
 		{
 			var encoding = context.Request.Headers["Accept-Encoding"].ToString();
-			return encoding.IsContains("br") || encoding.IsContains("*")
-				? "br"
-				: encoding.IsContains("gzip")
-					? "gzip"
-					: encoding.IsContains("deflate")
-						? "deflate"
-						: null;
+			return encoding.IsContains("*") || encoding.IsContains("zstd")
+				? "zstd"
+				: encoding.IsContains("br")
+					? "br"
+					: encoding.IsContains("gzip")
+						? "gzip"
+						: encoding.IsContains("deflate")
+							? "deflate"
+							: null;
 		}
 
 		/// <summary>
@@ -1299,11 +1301,11 @@ namespace net.vieapps.Components.Utility
 		public static async Task ShowStatusPageAsync(this StatusCodeContext context, Func<int, HttpContext, string> getHtmlBody = null)
 		{
 			// prepare status
-			var statusCode = context.HttpContext.GetItem("StatusCode", context.HttpContext.Response.StatusCode);
+			var statusCode = context.GetItem("StatusCode", context.HttpContext.Response.StatusCode);
 
 			// prepare content-type & body string
-			var contentType = context.HttpContext.GetItem("ContentType", "text/plain");
-			var bodystr = context.HttpContext.GetItem("Body", $"Error {statusCode}");
+			var contentType = context.GetItem("ContentType", "text/plain");
+			var bodystr = context.GetItem("Body", $"Error {statusCode}");
 			if ("text/plain".Equals(contentType) && $"Error {statusCode}".Equals(bodystr))
 			{
 				contentType = "text/html; charset=utf-8";
@@ -1318,11 +1320,11 @@ namespace net.vieapps.Components.Utility
 				body = body.Compress(encoding);
 
 			// prepare headers
-			var headers = context.HttpContext.GetItem("Headers", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+			var headers = context.GetItem("Headers", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
 			headers["Access-Control-Allow-Origin"] = "*";
 			headers["Server"] = context.HttpContext.GetServerName();
 			if (!headers.ContainsKey("Cache-Control"))
-				headers["Cache-Control"] = context.HttpContext.GetItem("CacheControl", "private, no-store, no-cache");
+				headers["Cache-Control"] = context.GetItem("CacheControl", "private, no-store, no-cache");
 
 			if (body.Length > 0)
 			{
@@ -1332,17 +1334,18 @@ namespace net.vieapps.Components.Utility
 					headers["Content-Encoding"] = encoding;
 			}
 
-			if (context.HttpContext.Items.TryGetValue("PipelineStopwatch", out object value) && value is Stopwatch stopwatch)
+			var stopwatch = context.GetItem<Stopwatch>("PipelineStopwatch");
+			if (stopwatch != null)
 			{
 				stopwatch.Stop();
 				headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
 			}
 
-			var correlationID = context.HttpContext.GetItem<string>("CorrelationID");
+			var correlationID = context.GetItem<string>("CorrelationID");
 			if (!string.IsNullOrWhiteSpace(correlationID))
 				headers["X-Correlation-ID"] = correlationID;
 
-			var nodeID = context.HttpContext.GetItem<string>("NodeID");
+			var nodeID = context.GetItem<string>("NodeID");
 			if (!string.IsNullOrWhiteSpace(nodeID))
 				headers["X-Node"] = nodeID;
 

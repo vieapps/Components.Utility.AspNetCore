@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Primitives;
@@ -85,9 +86,19 @@ namespace net.vieapps.Components.Utility
 		/// <param name="name"></param>
 		/// <returns></returns>
 		public static T GetItem<T>(this HttpContext context, string name, T @default = default)
-			=> context.Items.TryGetValue(name, out var value) && value is T val
-				? val
+			=> context.Items.TryGetValue(name, out var value) && value is T tvalue
+				? tvalue
 				: @default;
+
+		/// <summary>
+		/// Gets an object from this context items
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="context"></param>
+		/// <param name="name"></param>
+		/// <returns></returns>
+		public static T GetItem<T>(this StatusCodeContext context, string name, T @default = default)
+			=> context.HttpContext.GetItem(name, @default);
 
 		/// <summary>
 		/// Converts this dictionary of string values to dictionary of string
