@@ -456,7 +456,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="queryIncluded"></param>
 		/// <returns></returns>
 		public static string GenerateETag(this Uri uri, string prefix = null, bool queryIncluded = false)
-			=> $"{prefix ?? "v"}#{(queryIncluded ? $"{uri}".ToLower() : uri.GetUrl(true, false)).GenerateUUID()}";
+			=> $"{prefix ?? "vieapps"}#{(queryIncluded ? $"{uri}".ToLower() : uri.GetUrl(true, false)).GenerateUUID()}";
 
 		/// <summary>
 		/// Generates ETag from the uri of this context
