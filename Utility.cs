@@ -82,7 +82,7 @@ namespace net.vieapps.Components.Utility
 			if (exception is AccessDeniedException)
 				return (int)HttpStatusCode.Forbidden;
 
-			if (exception is UnauthorizedException)
+			if (exception is UnauthorizedException || exception is InvalidSessionException || exception is SessionNotFoundException || exception is SessionExpiredException || exception is InvalidTokenException || exception is TokenNotFoundException || exception is TokenExpiredException || exception is TokenRevokedException || exception is InvalidTokenSignatureException)
 				return (int)HttpStatusCode.Unauthorized;
 
 			if (exception is MethodNotAllowedException)
@@ -101,8 +101,8 @@ namespace net.vieapps.Components.Utility
 				return (int)HttpStatusCode.BadGateway;
 
 			return exception.GetTypeName(true).IsEndsWith("NotFound")
-					? (int)HttpStatusCode.NotFound
-					: (int)HttpStatusCode.InternalServerError;
+				? (int)HttpStatusCode.NotFound
+				: (int)HttpStatusCode.InternalServerError;
 		}
 
 		/// <summary>
