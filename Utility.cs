@@ -497,6 +497,17 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static Task<string> ReadTextAsync(this HttpContext context, CancellationToken cancellationToken = default)
 			=> context.Request.Body.ReadAllAsync(cancellationToken);
+
+		/// <summary>
+		/// Reads data as JSON from request body asynchronously
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static async Task<JToken> ReadJsonAsync(this HttpContext context, CancellationToken cancellationToken = default)
+		{
+			var json = await context.ReadTextAsync(cancellationToken).ConfigureAwait(false);
+			return json.ToJSON();
+		}
 		#endregion
 
 		#region Response helpers: set headers, flush, redirect, ...
