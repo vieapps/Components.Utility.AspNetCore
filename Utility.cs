@@ -510,7 +510,7 @@ namespace net.vieapps.Components.Utility
 		}
 		#endregion
 
-		#region Response helpers: set headers, flush, redirect, ...
+		#region Response helpers: set headers, redirect, writes, flush, ...
 		static List<string> BeRemovedHeaders { get; } = new[] { "X-Node", "X-Svc-Node", "X-Service-Node" }.ToList();
 
 		/// <summary>
@@ -624,14 +624,6 @@ namespace net.vieapps.Components.Utility
 		}
 
 		/// <summary>
-		/// Asynchronously sends all currently buffered output to the client
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="cancellationToken"></param>
-		public static Task FlushAsync(this HttpContext context, CancellationToken cancellationToken = default)
-			=> context.Response.Body.FlushAsync(cancellationToken);
-
-		/// <summary>
 		/// Redirects the response by send the redirect status code (301 or 302) to client
 		/// </summary>
 		/// <param name="context"></param>
@@ -664,6 +656,34 @@ namespace net.vieapps.Components.Utility
 				location += uri.Fragment;
 			context.Redirect(location, redirectPermanently);
 		}
+
+		/// <summary>
+		/// Asynchronously writes a sequence of bytes to the response stream
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="data"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static async Task WritesAsync(this HttpContext context, byte[] data, CancellationToken cancellationToken = default)
+			=> await context.Response.Body.WriteAsync(data, cancellationToken).ConfigureAwait(false);
+
+		/// <summary>
+		/// Asynchronously writes a text to the response stream
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="data"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static Task WritesAsync(this HttpContext context, string data, CancellationToken cancellationToken = default)
+			=> context.WritesAsync((data ?? "").ToBytes(), cancellationToken);
+
+		/// <summary>
+		/// Asynchronously sends all currently buffered output to the client
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="cancellationToken"></param>
+		public static Task FlushAsync(this HttpContext context, CancellationToken cancellationToken = default)
+			=> context.Response.Body.FlushAsync(cancellationToken);
 		#endregion
 
 		#region Write a stream to the response body
@@ -760,7 +780,7 @@ namespace net.vieapps.Components.Utility
 #else
 				await context.Response.Body.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
 #endif
-				await context.Response.Body.FlushAsync(cancellationToken).ConfigureAwait(false);
+				await context.FlushAsync(cancellationToken).ConfigureAwait(false);
 				count++;
 			}
 		}

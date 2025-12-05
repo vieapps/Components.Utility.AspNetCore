@@ -120,6 +120,27 @@ namespace net.vieapps.Components.Utility
 			=> context.HttpContext.GetItem(name, @default);
 
 		/// <summary>
+		/// Removes an object from this context items
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="name"></param>
+		/// <returns></returns>
+		public static bool RemoveItem(this HttpContext context, string name)
+			=> !string.IsNullOrWhiteSpace(name) && context.Items.Remove(name);
+
+		/// <summary>
+		/// Removes more objects from this context items
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="names"></param>
+		/// <returns></returns>
+		public static bool RemoveItems(this HttpContext context, IEnumerable<string> names)
+		{
+			var result = names?.Select(name => context.RemoveItem(name));
+			return result != null && !result.Any(value => value == false);
+		}
+
+		/// <summary>
 		/// Converts this dictionary of string values to dictionary of string
 		/// </summary>
 		/// <param name="dictionary"></param>
