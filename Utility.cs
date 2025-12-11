@@ -1240,6 +1240,15 @@ namespace net.vieapps.Components.Utility
 			}
 			context.ShowError(statusCode, message, type, correlationID, stack, showStack);
 		}
+
+		/// <summary>
+		/// Shows HTTP error as HTML
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="ex"></param>
+		/// <param name="showStack"></param>
+		public static void ShowError(this HttpContext context, Exception ex, bool showStack = false)
+			=> context.ShowError(ex.GetHttpStatusCode(), ex.Message, ex.GetTypeName(true), context.GetItem<string>("Correlation-ID"), ex, showStack);
 		#endregion
 
 		#region Write HTTP error as JSON
@@ -1410,18 +1419,15 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="websocket"></param>
 		/// <param name="context">The working context of ASP.NET Core</param>
-		/// <param name="whenIsNotWebSocketRequestAsync">Action to run when the request is not WebSocket request</param>
+		/// <param name="onSuccess">Action to run when wrap successful</param>
 		/// <returns></returns>
-		public static async Task WrapAsync(this WebSocket websocket, HttpContext context, Func<HttpContext, Task> whenIsNotWebSocketRequestAsync = null)
+		public static async Task WrapAsync(this WebSocket websocket, HttpContext context, Action<ManagedWebSocket> onSuccess = null)
 		{
-			if (context.WebSockets.IsWebSocketRequest)
-				await websocket.WrapAsync(await context.WebSockets.AcceptWebSocketAsync(
+			await websocket.WrapAsync(await context.WebSockets.AcceptWebSocketAsync(
 #if !NETSTANDARD2_0
 				new WebSocketAcceptContext { DangerousEnableCompression = AspNetCoreUtilityService.EnableWebSocketCompression	}
 #endif
-				).ConfigureAwait(false), context.GetRequestUri(), context.GetRemoteEndPoint(), context.GetLocalEndPoint(), context.Request.Headers.ToDictionary()).ConfigureAwait(false);
-			else if (whenIsNotWebSocketRequestAsync != null)
-				await whenIsNotWebSocketRequestAsync(context).ConfigureAwait(false);
+			).ConfigureAwait(false), context.GetRequestUri(), context.GetRemoteEndPoint(), context.GetLocalEndPoint(), context.Request.Headers.ToDictionary(), onSuccess).ConfigureAwait(false);
 		}
 
 		/// <summary>
@@ -1429,10 +1435,10 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="websocket"></param>
 		/// <param name="context">The working context of ASP.NET Core</param>
-		/// <param name="whenIsNotWebSocketRequestAsync">Action to run when the request is not WebSocket request</param>
+		/// <param name="onSuccess">Action to run when wrap successful</param>
 		/// <returns></returns>
-		public static Task WrapWebSocketAsync(this WebSocket websocket, HttpContext context, Func<HttpContext, Task> whenIsNotWebSocketRequestAsync = null)
-			=> websocket.WrapAsync(context, whenIsNotWebSocketRequestAsync);
+		public static Task WrapWebSocketAsync(this WebSocket websocket, HttpContext context, Action<ManagedWebSocket> onSuccess = null)
+			=> websocket.WrapAsync(context, onSuccess);
 		#endregion
 
 		#region Persists the data-protection keys to distributed cache
