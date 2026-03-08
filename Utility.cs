@@ -527,6 +527,9 @@ namespace net.vieapps.Components.Utility
 			if (AspNetCoreUtilityService.AddServerNameIntoResponseHeader)
 				headers["Server"] = context.GetServerName();
 
+			if (headers.TryGetValue("Content-Type", out var contentType) && !string.IsNullOrWhiteSpace(contentType) && !contentType.IsEndsWith("; charset=utf-8"))
+				headers["Content-Type"] = $"{contentType}; charset=utf-8";
+
 			if (AspNetCoreUtilityService.AddPoweredByIntoResponseHeader)
 				headers["X-Powered-By"] = $"{context.GetServerName()} {Assembly.GetCallingAssembly().GetVersion(false)}";
 
@@ -537,10 +540,9 @@ namespace net.vieapps.Components.Utility
 			{
 				stopwatch.Stop();
 				headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
+				var serverTiming = context.Items.TryGetValue("Server-Timing", out var srvTiming) && srvTiming is string ? srvTiming as string : "";
+				headers["Server-Timing"] = serverTiming + (serverTiming != "" ? ", " : "") + $"ngxOverall;dur={stopwatch.ElapsedMilliseconds}";
 			}
-
-			if (headers.TryGetValue("Content-Type", out var contentType) && !string.IsNullOrWhiteSpace(contentType) && !contentType.IsEndsWith("; charset=utf-8"))
-				headers["Content-Type"] = $"{contentType}; charset=utf-8";
 
 			// update into context to use at status page middleware
 			context.SetItem("StatusCode", statusCode);
