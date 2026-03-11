@@ -689,6 +689,51 @@ namespace net.vieapps.Components.Utility
 		#endregion
 
 		#region Write a stream to the response body
+		static (bool Partial, long Start, long End) GetPartialRange(this HttpContext context, long totalBytes)
+		{
+			var range = context.Request.Headers["Range"].FirstOrDefault();
+			if (string.IsNullOrWhiteSpace(range) || !range.IsStartsWith("bytes="))
+				return (false, 0, totalBytes - 1);
+
+			var ranges = range.ToArray("=").Last().ToArray(",").First().ToArray("-");
+			if (ranges.Length != 2)
+				return (false, 0, totalBytes - 1);
+
+			var startSpan = ranges.First();
+			var endSpan = ranges.Last();
+			long start = 0, end = totalBytes - 1;
+			if (startSpan.Length == 0 && endSpan.Length > 0)
+			{
+				if (Int64.TryParse(endSpan, out var last))
+				{
+					start = totalBytes - last;
+					end = totalBytes - 1;
+				}
+				else
+				{
+					start = 0;
+					end = totalBytes - 1;
+				}
+			}
+			else
+			{
+				if (startSpan.Length > 0)
+				{
+					if (!Int64.TryParse(startSpan, out start))
+						start = 0;
+				}
+				if (endSpan.Length > 0)
+				{
+					if (!Int64.TryParse(endSpan, out end))
+						end = totalBytes - 1;
+				}
+			}
+
+			start = start < 0 ? 0 : start;
+			end = end >= totalBytes ? totalBytes - 1 : end;
+			return start > end ? (false, 0, totalBytes - 1) : (true, start, end);
+		}
+
 		/// <summary>
 		/// Writes the stream to the output response body
 		/// </summary>
@@ -699,10 +744,11 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static async Task WriteAsync(this HttpContext context, Stream stream, Dictionary<string, string> headers, IEnumerable<Cookie> cookies, CancellationToken cancellationToken)
 		{
-			// prepare headers
-			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
+			{
+				["Accept-Ranges"] = "bytes"
+			};
 
-			// check ETag for supporting resumeable downloaders
 			headers.TryGetValue("ETag", out var eTag);
 			if (!string.IsNullOrWhiteSpace(eTag))
 			{
@@ -710,64 +756,26 @@ namespace net.vieapps.Components.Utility
 				if (!string.IsNullOrWhiteSpace(requestETag) && !eTag.Equals(requestETag))
 				{
 					context.SetResponseHeaders((int)HttpStatusCode.PreconditionFailed, null, 0, "private", null);
-					await context.FlushAsync(cancellationToken).ConfigureAwait(false);
 					return;
 				}
 			}
 
-			// prepare position for flushing as partial blocks
-			var asPartialContent = false;
 			var totalBytes = stream.Length;
-			long startBytes = 0, endBytes = totalBytes - 1;
-			var requestedRange = context.Request.Headers["Range"].First();
-
-			if (!string.IsNullOrWhiteSpace(requestedRange))
-			{
-				asPartialContent = true;
-				var range = requestedRange.ToList("=").Last().ToList("-");
-
-				startBytes = range[0].As<long>();
-				if (startBytes >= totalBytes)
-				{
-					context.SetResponseHeaders((int)HttpStatusCode.PreconditionFailed, null, 0, "private", null);
-					return;
-				}
-
-				if (startBytes < 0)
-					startBytes = 0;
-
-				if (range.Count > 1)
-					try
-					{
-						endBytes = range[1].As<long>();
-					}
-					catch { }
-
-				if (endBytes > totalBytes - 1)
-					endBytes = totalBytes - 1;
-			}
-
-			if (!string.IsNullOrWhiteSpace(eTag))
-				headers["Accept-Ranges"] = "bytes";
+			var (asPartialContent, startBytes, endBytes) = context.GetPartialRange(totalBytes);
+			var length = endBytes - startBytes + 1;
+			var size = (int)Math.Min(AspNetCoreUtilityService.BufferSize, length);
 
 			if (asPartialContent)
 			{
-				headers["Content-Length"] = $"{endBytes - startBytes + 1}";
-				if (startBytes > -1)
-					headers["Content-Range"] = $"bytes {startBytes}-{endBytes}/{totalBytes}";
+				headers["Content-Length"] = length.ToString();
+				headers["Content-Range"] = $"bytes {startBytes}-{endBytes}/{totalBytes}";
 			}
 
-			// update headers & cookies
-			context.SetResponseHeaders(asPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers);
 			context.AppendCookies(cookies);
+			context.SetResponseHeaders(asPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers);
 
-			// read and flush stream data to response stream
 			if (asPartialContent && startBytes > 0)
 				stream.Seek(startBytes, SeekOrigin.Begin);
-
-			var size = AspNetCoreUtilityService.BufferSize;
-			if (size > (endBytes - startBytes))
-				size = (int)(endBytes - startBytes) + 1;
 
 			var buffer = new byte[size];
 			var total = (int)Math.Ceiling((endBytes - startBytes + 0.0) / size);
@@ -782,7 +790,6 @@ namespace net.vieapps.Components.Utility
 #else
 				await context.Response.Body.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
 #endif
-				await context.FlushAsync(cancellationToken).ConfigureAwait(false);
 				count++;
 			}
 		}
@@ -825,14 +832,13 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, Stream stream, string contentType, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default, Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default)
 		{
-			// prepare headers
 			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
 
 			if (!string.IsNullOrWhiteSpace(contentType))
 				headers["Content-Type"] = contentType;
 
 			if (!string.IsNullOrWhiteSpace(contentDisposition))
-				headers["Content-Disposition"] = $"Attachment; Filename=\"{contentDisposition.UrlEncode()}\"";
+				headers["Content-Disposition"] = $"attachment; filename=\"{contentDisposition.UrlEncode()}\"";
 
 			if (!string.IsNullOrWhiteSpace(eTag))
 				headers["ETag"] = eTag;
@@ -850,7 +856,6 @@ namespace net.vieapps.Components.Utility
 			if (!string.IsNullOrWhiteSpace(correlationID))
 				headers["X-Correlation-ID"] = correlationID;
 
-			// write
 			return context.WriteAsync(stream, headers, cancellationToken);
 		}
 
@@ -873,7 +878,111 @@ namespace net.vieapps.Components.Utility
 
 		#region Write a file to the response body
 		/// <summary>
-		/// Writes the content of a file (binary) to the response body
+		/// Sends a file directly to response stream (zero-copy)
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="fileInfo">The information of the file to send to output stream</param>
+		/// <param name="contentType">The MIME type</param>
+		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
+		/// <param name="eTag">The entity tag</param>
+		/// <param name="lastModified">The Unix timestamp that presents last-modified time</param>
+		/// <param name="cacheControl">The string that presents cache control ('public', 'private', 'no-store')</param>
+		/// <param name="expires">The timespan that presents expires time of cache</param>
+		/// <param name="headers">The additional headers</param>
+		/// <param name="correlationID">The correlation identity</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		/// <exception cref="FileNotFoundException"></exception>
+		public static async Task SendFileAsync(this HttpContext context, FileInfo fileInfo, string contentType = null, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default, Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default)
+		{
+			if (fileInfo == null || !fileInfo.Exists)
+				throw new FileNotFoundException($"Not found [{fileInfo?.Name}]");
+
+			if (!string.IsNullOrWhiteSpace(eTag))
+			{
+				var requestETag = context.GetRequestETag();
+				if (!string.IsNullOrWhiteSpace(requestETag) && !eTag.Equals(requestETag))
+				{
+					context.SetResponseHeaders((int)HttpStatusCode.PreconditionFailed, null, 0, "private", correlationID);
+					return;
+				}
+			}
+
+			var totalBytes = fileInfo.Length;
+			var (asPartialContent, startBytes, endBytes) = context.GetPartialRange(totalBytes);
+			var length = endBytes - startBytes + 1;
+
+			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
+			{
+				["Accept-Ranges"] = "bytes",
+				["Content-Type"] = contentType ?? fileInfo.GetMimeType(),
+				["Last-Modified"] = (lastModified > 0 ? lastModified.FromUnixTimestamp() : fileInfo.LastWriteTimeUtc).ToHttpString()
+			};
+
+			if (asPartialContent)
+			{
+				headers["Content-Length"] = length.ToString();
+				headers["Content-Range"] = $"bytes {startBytes}-{endBytes}/{totalBytes}";
+			}
+
+			if (!string.IsNullOrWhiteSpace(contentDisposition))
+				headers["Content-Disposition"] = $"attachment; filename=\"{contentDisposition.UrlEncode()}\"";
+
+			if (!string.IsNullOrWhiteSpace(eTag))
+				headers["ETag"] = eTag;
+
+			if (!string.IsNullOrWhiteSpace(cacheControl))
+			{
+				headers["Cache-Control"] = cacheControl;
+				if (expires != default && expires.Ticks > 0)
+					headers["Expires"] = DateTime.UtcNow.Add(expires).ToHttpString();
+			}
+
+			if (!string.IsNullOrWhiteSpace(correlationID))
+				headers["X-Correlation-ID"] = correlationID;
+
+			context.SetResponseHeaders(asPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers);
+			await context.Response.SendFileAsync(fileInfo.FullName, startBytes, length, cancellationToken).ConfigureAwait(false);
+		}
+
+		/// <summary>
+		/// Sends a file directly to response stream (zero-copy)
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="fileInfo">The information of the file to send to output stream</param>
+		/// <param name="contentType">The MIME type</param>
+		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
+		/// <param name="eTag">The entity tag</param>
+		/// <param name="correlationID">The correlation identity</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static Task SendFileAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition = null, string eTag = null, string correlationID = null, CancellationToken cancellationToken = default)
+			=> context.SendFileAsync(fileInfo, contentType, contentDisposition, eTag, 0, null, TimeSpan.Zero, null, correlationID, cancellationToken);
+
+		/// <summary>
+		/// Sends a file directly to response stream (zero-copy)
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="fileInfo">The information of the file to send to output stream</param>
+		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
+		/// <param name="eTag">The entity tag</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static Task SendFileAsync(this HttpContext context, FileInfo fileInfo, string contentDisposition, string eTag = null, CancellationToken cancellationToken = default)
+			=> context.SendFileAsync(fileInfo, null, contentDisposition, eTag, null, cancellationToken);
+
+		/// <summary>
+		/// Sends a file directly to response stream (zero-copy)
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="fileInfo">The information of the file to send to output stream</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static Task SendFileAsync(this HttpContext context, FileInfo fileInfo, CancellationToken cancellationToken = default)
+			=> context.SendFileAsync(fileInfo, null, null, cancellationToken);
+
+		/// <summary>
+		/// Writes the content of a file (binary) to the response stream
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="fileInfo">The information of the file to write to output stream</param>
@@ -909,7 +1018,7 @@ namespace net.vieapps.Components.Utility
 		}
 
 		/// <summary>
-		/// Writes the content of a file (binary) to the response body
+		/// Writes the content of a file (binary) to the response stream
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="fileInfo">The information of the file to write to output stream</param>
@@ -923,10 +1032,10 @@ namespace net.vieapps.Components.Utility
 			=> context.WriteAsync(fileInfo, contentType, contentDisposition, eTag, 0, null, TimeSpan.Zero, null, correlationID, cancellationToken);
 
 		/// <summary>
-		/// Writes the content of a file (binary) to the response body
+		/// Writes the content of a file (binary) to the response stream
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="fileInfo">The information of the file</param>
+		/// <param name="fileInfo">The information of the file to write to output stream</param>
 		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
 		/// <param name="eTag">The entity tag</param>
 		/// <param name="cancellationToken">The cancellation token</param>
@@ -935,10 +1044,10 @@ namespace net.vieapps.Components.Utility
 			=> context.WriteAsync(fileInfo, null, contentDisposition, eTag, null, cancellationToken);
 
 		/// <summary>
-		/// Writes the content of a file (binary) to the response body
+		/// Writes the content of a file (binary) to the response stream
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="fileInfo">The information of the file</param>
+		/// <param name="fileInfo">The information of the file to write to output stream</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, CancellationToken cancellationToken = default)
