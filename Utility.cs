@@ -11,13 +11,14 @@ using System.Diagnostics;
 using System.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.StaticFiles;
-using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using net.vieapps.Components.WebSockets;
@@ -760,10 +761,15 @@ namespace net.vieapps.Components.Utility
 				}
 			}
 
+			if (cookies != null && cookies.Any())
+				context.AppendCookies(cookies);
+
 			var totalBytes = stream.Length;
 			var (asPartialContent, startBytes, endBytes) = context.GetPartialRange(totalBytes);
 			var length = endBytes - startBytes + 1;
-			var size = (int)Math.Min(AspNetCoreUtilityService.BufferSize, length);
+
+			if (asPartialContent && startBytes > 0)
+				stream.Seek(startBytes, SeekOrigin.Begin);
 
 			if (asPartialContent)
 			{
@@ -771,27 +777,11 @@ namespace net.vieapps.Components.Utility
 				headers["Content-Range"] = $"bytes {startBytes}-{endBytes}/{totalBytes}";
 			}
 
-			context.AppendCookies(cookies);
 			context.SetResponseHeaders(asPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers);
-
-			if (asPartialContent && startBytes > 0)
-				stream.Seek(startBytes, SeekOrigin.Begin);
-
-			var buffer = new byte[size];
-			var total = (int)Math.Ceiling((endBytes - startBytes + 0.0) / size);
-			var count = 0;
-			while (count < total)
-			{
-				if (cancellationToken.IsCancellationRequested)
-					return;
-				var read = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-#if NETSTANDARD2_0
-				await context.Response.Body.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
-#else
-				await context.Response.Body.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+#if !NETSTANDARD2_0
+			await context.Response.StartAsync(cancellationToken).ConfigureAwait(false);
 #endif
-				count++;
-			}
+			await StreamCopyOperation.CopyToAsync(stream, context.Response.Body, length, AspNetCoreUtilityService.BufferSize, cancellationToken).ConfigureAwait(false);
 		}
 
 		/// <summary>
@@ -941,6 +931,9 @@ namespace net.vieapps.Components.Utility
 				headers["X-Correlation-ID"] = correlationID;
 
 			context.SetResponseHeaders(asPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers);
+#if !NETSTANDARD2_0
+			await context.Response.StartAsync(cancellationToken).ConfigureAwait(false);
+#endif
 			await context.Response.SendFileAsync(fileInfo.FullName, startBytes, length, cancellationToken).ConfigureAwait(false);
 		}
 
