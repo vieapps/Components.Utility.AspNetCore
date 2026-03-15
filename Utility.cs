@@ -820,7 +820,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, Stream stream, string contentType, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default, Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default)
+		public static Task WriteAsync(this HttpContext context, Stream stream, string contentType, string contentDisposition, string eTag, long lastModified, string cacheControl, TimeSpan expires, Dictionary<string, string> headers, string correlationID, CancellationToken cancellationToken)
 		{
 			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
 
@@ -864,9 +864,22 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, Stream stream, string contentType, string contentDisposition, string eTag, long lastModified, string cacheControl, TimeSpan expires, CancellationToken cancellationToken = default)
 			=> context.WriteAsync(stream, contentType, contentDisposition, eTag, lastModified, cacheControl, expires, null, null, cancellationToken);
+
+		/// <summary>
+		/// Writes the stream to the output response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="stream">The stream to write</param>
+		/// <param name="contentType">The MIME type</param>
+		/// <param name="eTag">The entity tag</param>
+		/// <param name="cacheControl">The string that presents cache control ('public', 'private', 'no-store')</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, Stream stream, string contentType, string eTag = null, string cacheControl = null, CancellationToken cancellationToken = default)
+			=> context.WriteAsync(stream, contentType, null, eTag, 0, cacheControl, default, cancellationToken);
 		#endregion
 
-		#region Write a file to the response body
+		#region Send a file to the response body
 		/// <summary>
 		/// Sends a file directly to response stream (zero-copy)
 		/// </summary>
@@ -883,7 +896,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
 		/// <exception cref="FileNotFoundException"></exception>
-		public static async Task SendFileAsync(this HttpContext context, FileInfo fileInfo, string contentType = null, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default, Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default)
+		public static async Task SendFileAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition, string eTag, long lastModified, string cacheControl, TimeSpan expires, Dictionary<string, string> headers, string correlationID, CancellationToken cancellationToken)
 		{
 			if (fileInfo == null || !fileInfo.Exists)
 				throw new FileNotFoundException($"Not found [{fileInfo?.Name}]");
@@ -944,12 +957,28 @@ namespace net.vieapps.Components.Utility
 		/// <param name="fileInfo">The information of the file to send to output stream</param>
 		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
 		/// <param name="eTag">The entity tag</param>
+		/// <param name="cacheControl">The string that presents cache control ('public', 'private', 'no-store')</param>
 		/// <param name="headers">The additional headers</param>
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task SendFileAsync(this HttpContext context, FileInfo fileInfo, string contentDisposition, string eTag = null, Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default)
-			=> context.SendFileAsync(fileInfo, null, contentDisposition, eTag, 0, "public, max-age=31622400, s-maxage=31622400, immutable, stale-while-revalidate=60, stale-if-error=86400", TimeSpan.Zero, headers, correlationID,  cancellationToken);
+		/// <exception cref="FileNotFoundException"></exception>
+		public static Task SendFileAsync(this HttpContext context, FileInfo fileInfo, string contentDisposition, string eTag, string cacheControl, Dictionary<string, string> headers, string correlationID, CancellationToken cancellationToken)
+			=> context.SendFileAsync(fileInfo, null, contentDisposition, eTag, 0, cacheControl ?? "public, max-age=31622400, s-maxage=31622400, immutable, stale-while-revalidate=60, stale-if-error=86400", default, headers, correlationID, cancellationToken);
+
+		/// <summary>
+		/// Sends a file directly to response stream (zero-copy)
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="fileInfo">The information of the file to send to output stream</param>
+		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
+		/// <param name="eTag">The entity tag</param>
+		/// <param name="headers">The additional headers</param>
+		/// <param name="correlationID">The correlation identity</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static Task SendFileAsync(this HttpContext context, FileInfo fileInfo, string contentDisposition, string eTag, Dictionary<string, string> headers, string correlationID, CancellationToken cancellationToken)
+			=> context.SendFileAsync(fileInfo, contentDisposition, eTag, null, headers, correlationID,  cancellationToken);
 
 		/// <summary>
 		/// Sends a file directly to response stream (zero-copy)
@@ -959,7 +988,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="headers">The additional headers</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task SendFileAsync(this HttpContext context, FileInfo fileInfo, Dictionary<string, string> headers = null, CancellationToken cancellationToken = default)
+		public static Task SendFileAsync(this HttpContext context, FileInfo fileInfo, Dictionary<string, string> headers, CancellationToken cancellationToken)
 			=> context.SendFileAsync(fileInfo, null, null, headers, null, cancellationToken);
 
 		/// <summary>
@@ -971,7 +1000,9 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static Task SendFileAsync(this HttpContext context, FileInfo fileInfo, CancellationToken cancellationToken = default)
 			=> context.SendFileAsync(fileInfo, null, cancellationToken);
+		#endregion
 
+		#region Write a file to the response body
 		/// <summary>
 		/// Writes the content of a file (binary) to the response stream
 		/// </summary>
@@ -987,7 +1018,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType = null, string contentDisposition = null, string eTag = null, long lastModified = 0, string cacheControl = null, TimeSpan expires = default, Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default)
+		public static async Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentType, string contentDisposition, string eTag, long lastModified, string cacheControl, TimeSpan expires, Dictionary<string, string> headers, string correlationID, CancellationToken cancellationToken)
 		{
 			if (fileInfo == null || !fileInfo.Exists)
 				throw new FileNotFoundException($"Not found{(fileInfo != null ? $" [{fileInfo.Name}]" : "")}");
@@ -1015,12 +1046,27 @@ namespace net.vieapps.Components.Utility
 		/// <param name="fileInfo">The information of the file to write to output stream</param>
 		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
 		/// <param name="eTag">The entity tag</param>
+		/// <param name="cacheControl">The string that presents cache control ('public', 'private', 'no-store')</param>
 		/// <param name="headers">The additional headers</param>
 		/// <param name="correlationID">The correlation identity</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentDisposition = null, string eTag = null, Dictionary<string, string> headers = null, string correlationID = null, CancellationToken cancellationToken = default)
-			=> context.WriteAsync(fileInfo, null, contentDisposition, eTag, 0, null, TimeSpan.Zero, headers, correlationID, cancellationToken);
+		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentDisposition, string eTag, string cacheControl, Dictionary<string, string> headers, string correlationID, CancellationToken cancellationToken)
+			=> context.WriteAsync(fileInfo, null, contentDisposition, eTag, 0, cacheControl, TimeSpan.Zero, headers, correlationID, cancellationToken);
+
+		/// <summary>
+		/// Writes the content of a file (binary) to the response stream
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="fileInfo">The information of the file to write to output stream</param>
+		/// <param name="contentDisposition">The string that presents name of attachment file, let it empty/null for writting showing/displaying (not for downloading attachment file)</param>
+		/// <param name="eTag">The entity tag</param>
+		/// <param name="headers">The additional headers</param>
+		/// <param name="correlationID">The correlation identity</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, string contentDisposition, string eTag, Dictionary<string, string> headers, string correlationID, CancellationToken cancellationToken)
+			=> context.WriteAsync(fileInfo, contentDisposition, eTag, null, headers, correlationID, cancellationToken);
 
 		/// <summary>
 		/// Writes the content of a file (binary) to the response stream
@@ -1030,7 +1076,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="headers">The additional headers</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, Dictionary<string, string> headers = null, CancellationToken cancellationToken = default)
+		public static Task WriteAsync(this HttpContext context, FileInfo fileInfo, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
 			=> context.WriteAsync(fileInfo, null, null, headers, null, cancellationToken);
 
 		/// <summary>
