@@ -107,14 +107,6 @@ namespace net.vieapps.Components.Utility
 		}
 
 		/// <summary>
-		/// Gets the name of server
-		/// </summary>
-		/// <param name="context"></param>
-		/// <returns></returns>
-		public static string GetServerName(this HttpContext context)
-			=> string.IsNullOrWhiteSpace(AspNetCoreUtilityService.ServerName) ? "VIEApps NGX" : AspNetCoreUtilityService.ServerName;
-
-		/// <summary>
 		/// Gets the HTML body of a status code
 		/// </summary>
 		/// <param name="context"></param>
@@ -137,6 +129,80 @@ namespace net.vieapps.Components.Utility
 				+ "</body>\r\n</html>";
 			return html;
 		}
+
+		/// <summary>
+		/// Gets the name of server
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static string GetHttpServerName(this HttpContext context)
+			=> string.IsNullOrWhiteSpace(AspNetCoreUtilityService.ServerName) ? "VIEApps NGX" : AspNetCoreUtilityService.ServerName;
+
+		/// <summary>
+		/// Gets the name of server
+		/// </summary>
+		/// <param name="context"></param>
+		/// <returns></returns>
+		public static string GetServerName(this HttpContext context)
+			=> context.GetHttpServerName();
+
+		/// <summary>
+		/// Gets the 'cache-control' header
+		/// </summary>
+		/// <param name="isPrivate"></param>
+		/// <param name="maxAge"></param>
+		/// <param name="sMaxAge"></param>
+		/// <param name="isImmutable"></param>
+		/// <returns></returns>
+		public static string GetHttpCacheControl(bool isPrivate = false, int maxAge = -1, int sMaxAge = 0, bool isImmutable = true)
+		{
+			if (isPrivate)
+				return "private, no-cache, no-store";
+
+			if (maxAge < 0)
+				maxAge = 366 * 24 * 60 * 60;
+
+			if (sMaxAge < 1)
+				sMaxAge = maxAge > 0 ? maxAge : 366 * 24 * 60 * 60;
+
+			var cacheControl = $"public, max-age={maxAge}, s-maxage={sMaxAge}";
+			if (isImmutable)
+				cacheControl += ", immutable";
+			cacheControl += ", stale-while-revalidate=60, stale-if-error=86400";
+			
+			return cacheControl;
+		}
+
+		/// <summary>
+		/// Gets the 'cache-control' header
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="isPrivate"></param>
+		/// <param name="maxAge"></param>
+		/// <param name="sMaxAge"></param>
+		/// <param name="isImmutable"></param>
+		/// <returns></returns>
+		public static string GetHttpCacheControl(this HttpContext context, bool isPrivate = false, int maxAge = -1, int sMaxAge = 0, bool isImmutable = true)
+			=> AspNetCoreUtilityService.GetHttpCacheControl(isPrivate, maxAge, sMaxAge, isImmutable);
+
+		/// <summary>
+		/// Gets the 'cache-control' header
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="isPrivate"></param>
+		/// <param name="sMaxAge"></param>
+		/// <returns></returns>
+		public static string GetHttpCacheControl(this HttpContext context, bool isPrivate, int sMaxAge)
+			=> context.GetHttpCacheControl(isPrivate, 0, sMaxAge, false);
+
+		/// <summary>
+		/// Gets the 'cache-control' header
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="sMaxAge"></param>
+		/// <returns></returns>
+		public static string GetHttpCacheControl(this HttpContext context, int sMaxAge)
+			=> context.GetHttpCacheControl(false, sMaxAge);
 
 		static FileExtensionContentTypeProvider MimeTypeProvider { get; } = new FileExtensionContentTypeProvider();
 
@@ -964,7 +1030,7 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		/// <exception cref="FileNotFoundException"></exception>
 		public static Task SendFileAsync(this HttpContext context, FileInfo fileInfo, string contentDisposition, string eTag, string cacheControl, Dictionary<string, string> headers, string correlationID, CancellationToken cancellationToken)
-			=> context.SendFileAsync(fileInfo, null, contentDisposition, eTag, 0, cacheControl ?? "public, max-age=31622400, s-maxage=31622400, immutable, stale-while-revalidate=60, stale-if-error=86400", default, headers, correlationID, cancellationToken);
+			=> context.SendFileAsync(fileInfo, null, contentDisposition, eTag, 0, cacheControl ?? context.GetHttpCacheControl(), default, headers, correlationID, cancellationToken);
 
 		/// <summary>
 		/// Sends a file directly to response stream (zero-copy)
@@ -1031,7 +1097,7 @@ namespace net.vieapps.Components.Utility
 					contentDisposition,
 					eTag,
 					string.IsNullOrWhiteSpace(eTag) ? 0 : lastModified > 0 ? lastModified : fileInfo.LastWriteTimeUtc.ToUnixTimestamp(),
-					string.IsNullOrWhiteSpace(eTag) ? null : cacheControl ?? "public, max-age=31622400, s-maxage=31622400, immutable, stale-while-revalidate=60, stale-if-error=86400",
+					string.IsNullOrWhiteSpace(eTag) ? null : cacheControl ?? context.GetHttpCacheControl(),
 					string.IsNullOrWhiteSpace(eTag) ? TimeSpan.Zero : expires != TimeSpan.Zero && expires.Ticks > 0 ? expires : TimeSpan.FromDays(366),
 					headers,
 					correlationID,
