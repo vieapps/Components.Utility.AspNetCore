@@ -191,9 +191,20 @@ namespace net.vieapps.Components.Utility
 		/// <param name="context"></param>
 		/// <param name="isPrivate"></param>
 		/// <param name="sMaxAge"></param>
+		/// <param name="isImmutable"></param>
+		/// <returns></returns>
+		public static string GetHttpCacheControl(this HttpContext context, bool isPrivate, int sMaxAge, bool isImmutable = true)
+			=> context.GetHttpCacheControl(isPrivate, 0, sMaxAge, isImmutable);
+
+		/// <summary>
+		/// Gets the 'cache-control' header
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="isPrivate"></param>
+		/// <param name="sMaxAge"></param>
 		/// <returns></returns>
 		public static string GetHttpCacheControl(this HttpContext context, bool isPrivate, int sMaxAge)
-			=> context.GetHttpCacheControl(isPrivate, 0, sMaxAge, false);
+			=> context.GetHttpCacheControl(isPrivate, sMaxAge, false);
 
 		/// <summary>
 		/// Gets the 'cache-control' header
