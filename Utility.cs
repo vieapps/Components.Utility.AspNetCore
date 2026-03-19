@@ -189,41 +189,10 @@ namespace net.vieapps.Components.Utility
 		/// Gets the 'cache-control' header
 		/// </summary>
 		/// <param name="context"></param>
-		/// <param name="isPrivate"></param>
-		/// <param name="sMaxAge"></param>
-		/// <param name="isImmutable"></param>
-		/// <returns></returns>
-		public static string GetHttpCacheControl(this HttpContext context, bool isPrivate, int sMaxAge, bool isImmutable)
-			=> context.GetHttpCacheControl(isPrivate, 0, sMaxAge, isImmutable);
-
-		/// <summary>
-		/// Gets the 'cache-control' header
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="isPrivate"></param>
 		/// <param name="sMaxAge"></param>
 		/// <returns></returns>
-		public static string GetHttpCacheControl(this HttpContext context, bool isPrivate, int sMaxAge)
-			=> context.GetHttpCacheControl(isPrivate, sMaxAge, false);
-
-		/// <summary>
-		/// Gets the 'cache-control' header
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="isPrivate"></param>
-		/// <param name="isImmutable"></param>
-		/// <returns></returns>
-		public static string GetHttpCacheControl(this HttpContext context, bool isPrivate, bool isImmutable)
-			=> context.GetHttpCacheControl(isPrivate, 0, isImmutable);
-
-		/// <summary>
-		/// Gets the 'cache-control' header
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="sMaxAge"></param>
-		/// <returns></returns>
-		public static string GetHttpCacheControl(this HttpContext context, int sMaxAge)
-			=> context.GetHttpCacheControl(false, sMaxAge);
+		public static string GetHttpCacheControl(this HttpContext context, int sMaxAge, bool isImmutable = false)
+			=> context.GetHttpCacheControl(false, 0, sMaxAge, isImmutable);
 
 		static FileExtensionContentTypeProvider MimeTypeProvider { get; } = new FileExtensionContentTypeProvider();
 
