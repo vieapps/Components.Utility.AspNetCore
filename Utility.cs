@@ -1082,21 +1082,11 @@ namespace net.vieapps.Components.Utility
 		public static async Task WriteAsync(this HttpContext context, byte[] buffer, int offset, int count, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
 		{
 			context.SetResponseHeaders((int)HttpStatusCode.OK, headers);
+			var length = count > 0 ? count : (buffer.Length - offset);
 #if NETSTANDARD2_0
-			await context.Response.Body.WriteAsync(buffer, offset, count, cancellationToken).ConfigureAwait(false);
-#endif
-#if NET8_0
-			await context.Response.StartAsync(cancellationToken).ConfigureAwait(false);
-			await context.Response.Body.WriteAsync(buffer.AsMemory(offset, count), cancellationToken).ConfigureAwait(false);
-#endif
-#if !NETSTANDARD2_0 && !NET8_0
-			await context.Response.StartAsync(cancellationToken).ConfigureAwait(false);
-			var length = count > 0 ? count : buffer.Length;
-			var writer = context.Response.BodyWriter;
-			var span = writer.GetSpan(length);
-			buffer.AsSpan(offset, length).CopyTo(span);
-			writer.Advance(length);
-			await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+			await context.Response.Body.WriteAsync(buffer, offset, length, cancellationToken).ConfigureAwait(false);
+#else
+			await context.Response.Body.WriteAsync(buffer.AsMemory(offset, length),	cancellationToken).ConfigureAwait(false);
 #endif
 		}
 
