@@ -1048,17 +1048,6 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="buffer"></param>
-		/// <param name="headers"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, byte[] buffer, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
-			=> context.WriteAsync(buffer, 0, 0, headers, cancellationToken);
-
-		/// <summary>
-		/// Writes binary data to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="buffer"></param>
 		/// <param name="offset"></param>
 		/// <param name="count"></param>
 		/// <param name="cancellationToken"></param>
@@ -1071,10 +1060,32 @@ namespace net.vieapps.Components.Utility
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="buffer"></param>
+		/// <param name="headers"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, byte[] buffer, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
+			=> context.WriteAsync(buffer, 0, 0, headers, cancellationToken);
+
+		/// <summary>
+		/// Writes binary data to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="buffer"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, byte[] buffer, CancellationToken cancellationToken)
-			=> context.WriteAsync(buffer, 0, 0, cancellationToken);
+			=> context.WriteAsync(buffer, null, cancellationToken);
+
+		/// <summary>
+		/// Writes binary data to the response body
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="buffer"></param>
+		/// <param name="headers"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static Task WriteAsync(this HttpContext context, ArraySegment<byte> buffer, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
+			=> context.WriteAsync(buffer.ToBytes(), headers, cancellationToken);
 
 		/// <summary>
 		/// Writes binary data to the response body
@@ -1084,7 +1095,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, ArraySegment<byte> buffer, CancellationToken cancellationToken = default)
-			=> context.WriteAsync(buffer.ToBytes(), cancellationToken);
+			=> context.WriteAsync(buffer, null, cancellationToken);
 
 		/// <summary>
 		/// Writes binary data to the response body
