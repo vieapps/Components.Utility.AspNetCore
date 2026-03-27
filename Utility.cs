@@ -163,18 +163,11 @@ namespace net.vieapps.Components.Utility
 			if (isPrivate)
 				return "private, no-cache, no-store";
 
-			if (maxAge < 0)
-				maxAge = 366 * 24 * 60 * 60;
+			var max = 366 * 24 * 60 * 60;
+			maxAge = maxAge < 0 ? max : maxAge;
+			sMaxAge = sMaxAge > 0 ? sMaxAge : maxAge > 0 ? maxAge : max;
 
-			if (sMaxAge < 1)
-				sMaxAge = maxAge > 0 ? maxAge : 366 * 24 * 60 * 60;
-
-			var cacheControl = $"public, max-age={maxAge}, s-maxage={sMaxAge}";
-			if (isImmutable)
-				cacheControl += ", immutable";
-			cacheControl += ", stale-while-revalidate=60, stale-if-error=86400";
-			
-			return cacheControl;
+			return $"public, max-age={maxAge}, s-maxage={sMaxAge}" + (isImmutable ? ", immutable" : "") + ", stale-while-revalidate=60, stale-if-error=86400";			
 		}
 
 		/// <summary>
@@ -214,7 +207,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="fileInfo"></param>
 		/// <returns></returns>
 		public static string GetMimeType(this FileInfo fileInfo)
-			=> fileInfo?.Name?.GetMimeType() ?? "application/octet-stream; charset=utf-8";
+			=> fileInfo?.Name?.GetMimeType() ?? "application/octet-stream";
 
 		/// <summary>
 		/// Parses the query of an uri
@@ -690,16 +683,19 @@ namespace net.vieapps.Components.Utility
 		}
 
 		static Dictionary<string, string> Normalize(this Dictionary<string, string> headers, string contentType, string contentDisposition, string eTag, long lastModified, string cacheControl, TimeSpan expires, string correlationID = null)
-			=> (headers ?? new Dictionary<string, string>()).Normalize(new Dictionary<string, string>
+		{
+			headers = headers ?? new Dictionary<string, string>();
+			return headers.Normalize(new Dictionary<string, string>
 			{
-				["Content-Type"] = string.IsNullOrWhiteSpace(contentType) ? null : contentType,
-				["Content-Disposition"] = string.IsNullOrWhiteSpace(contentDisposition) ? null : $"attachment; filename=\"" + contentDisposition.UrlEncode() + "\"",
-				["ETag"] = string.IsNullOrWhiteSpace(eTag) ? null : eTag,
-				["Last-Modified"] = lastModified <= 0 ? null : lastModified.FromUnixTimestamp().ToHttpString(),
-				["Cache-Control"] = string.IsNullOrWhiteSpace(cacheControl) ? null : cacheControl,
-				["Expires"] = string.IsNullOrWhiteSpace(cacheControl) || expires == default || expires.Ticks == 0 ? null : DateTime.Now.Add(expires).ToHttpString(),
-				["X-Correlation-ID"] = string.IsNullOrWhiteSpace(correlationID) ? null : correlationID
+				["Content-Type"] = string.IsNullOrWhiteSpace(contentType) ? headers.TryGetValue("Content-Type", out var value) ? value : null : contentType,
+				["Content-Disposition"] = string.IsNullOrWhiteSpace(contentDisposition) ? headers.TryGetValue("Content-Disposition", out value) ? value : null : contentDisposition.IsContains("filename=") ? contentDisposition : $"attachment; filename=\"" + contentDisposition.UrlEncode() + "\"",
+				["ETag"] = string.IsNullOrWhiteSpace(eTag) ? headers.TryGetValue("ETag", out value) ? value : null : eTag,
+				["Last-Modified"] = lastModified <= 0 ? headers.TryGetValue("Last-Modified", out value) ? value : null : lastModified.FromUnixTimestamp().ToHttpString(),
+				["Cache-Control"] = string.IsNullOrWhiteSpace(cacheControl) ? headers.TryGetValue("Cache-Control", out value) ? value : null : cacheControl,
+				["Expires"] = string.IsNullOrWhiteSpace(cacheControl) || expires == default || expires.Ticks == 0 ? headers.TryGetValue("Expires", out value) ? value : null : DateTime.Now.Add(expires).ToHttpString(),
+				["X-Correlation-ID"] = string.IsNullOrWhiteSpace(correlationID) ? headers.TryGetValue("X-Correlation-ID", out value) ? value : null : correlationID
 			});
+		}
 
 		/// <summary>
 		/// Sets the approriate headers of response
@@ -868,7 +864,18 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		/// <exception cref="FileNotFoundException"></exception>
 		public static Task SendFileAsync(this HttpContext context, FileInfo fileInfo, string contentDisposition, string eTag, string cacheControl, Dictionary<string, string> headers, string correlationID, CancellationToken cancellationToken)
-			=> context.SendFileAsync(fileInfo, null, contentDisposition, eTag, 0, cacheControl ?? context.GetHttpCacheControl(), default, headers, correlationID, cancellationToken);
+		{
+			var contentType = headers != null && headers.TryGetValue("Content-Type", out var value) && !string.IsNullOrWhiteSpace(value)
+				? value
+				: null;
+			long lastModified = 0;
+			if (headers != null && headers.TryGetValue("Last-Modified", out value) && DateTime.TryParse(value, out var datetime))
+				lastModified = datetime.ToUnixTimestamp();
+			var expires = headers != null && headers.TryGetValue("Expires", out value) && DateTime.TryParse(value, out datetime)
+				? datetime - DateTime.Now
+				: default;
+			return context.SendFileAsync(fileInfo, contentType, contentDisposition, eTag, lastModified, cacheControl, expires, headers, correlationID, cancellationToken);
+		}
 
 		/// <summary>
 		/// Sends a file directly to response stream (zero-copy)
