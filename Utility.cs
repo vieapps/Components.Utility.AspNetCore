@@ -713,7 +713,6 @@ namespace net.vieapps.Components.Utility
 			{
 				if (context.Items.TryGetValue("PipelineStopwatch", out var swatch) && swatch is Stopwatch stopwatch)
 				{
-					stopwatch.Stop();
 					header["X-Execution-Times"] = stopwatch.GetElapsedTimes();
 					var serverTiming = context.Items.TryGetValue("Server-Timing", out var srvTiming) && srvTiming is string ? srvTiming as string : "";
 					header["Server-Timing"] = serverTiming + (serverTiming != "" ? ", " : "") + $"ngxOverall;dur={stopwatch.ElapsedMilliseconds}";
