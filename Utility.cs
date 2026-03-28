@@ -1162,13 +1162,15 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, string text, string contentType, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
 		{
+			headers = headers ?? new Dictionary<string, string>();
 			if (string.IsNullOrWhiteSpace(contentType))
 			{
-				if (headers == null || !headers.TryGetValue("Content-Type", out contentType))
+				if (!headers.TryGetValue("Content-Type", out contentType) || string.IsNullOrWhiteSpace(contentType))
 					contentType = "text/html";
 			}
 			contentType += contentType.IsEndsWith("charset=utf-8") ? "" : "; charset=utf-8";
-			return context.WriteAsync(text?.ToBytes() ?? Array.Empty<byte>(), contentType, headers, cancellationToken);
+			headers["Content-Type"] = contentType;
+			return context.WriteAsync(text?.ToBytes() ?? Array.Empty<byte>(), headers, cancellationToken);
 		}
 
 		/// <summary>
@@ -1185,7 +1187,7 @@ namespace net.vieapps.Components.Utility
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
 		public static Task WriteAsync(this HttpContext context, string text, string contentType, string eTag, long lastModified, string cacheControl, TimeSpan expires, string correlationID = null, CancellationToken cancellationToken = default)
-			=> context.WriteAsync(text, contentType, new Dictionary<string, string>().Normalize(null, null, eTag, lastModified, cacheControl, expires, correlationID), cancellationToken);
+			=> context.WriteAsync(text, contentType, new Dictionary<string, string>().Normalize(contentType, null, eTag, lastModified, cacheControl, expires, correlationID), cancellationToken);
 
 		/// <summary>
 		/// Writes the given text to the response body
