@@ -1150,7 +1150,7 @@ namespace net.vieapps.Components.Utility
 			=> context.WriteAsync(buffer, contentType, null, null, 0, null, default, headers, null, cancellationToken);
 		#endregion
 
-		#region Write text/json data to the response body
+		#region Write text data to the response body
 		/// <summary>
 		/// Writes the given text to the response body
 		/// </summary>
@@ -1167,7 +1167,7 @@ namespace net.vieapps.Components.Utility
 				if (!headers.TryGetValue("Content-Type", out contentType) || string.IsNullOrWhiteSpace(contentType))
 					contentType = "text/html";
 			}
-			contentType += contentType.IsEndsWith("charset=utf-8") ? "" : "; charset=utf-8";
+			contentType += contentType.IsContains("charset=") ? "" : "; charset=utf-8";
 			headers["Content-Type"] = contentType;
 			return context.WriteAsync(text?.ToBytes() ?? Array.Empty<byte>(), headers, cancellationToken);
 		}
@@ -1195,63 +1195,6 @@ namespace net.vieapps.Components.Utility
 		/// <param name="text"></param>
 		public static Task WriteAsync(this HttpContext context, string text, CancellationToken cancellationToken = default)
 			=> context.WriteAsync(text, null, null, cancellationToken);
-
-		/// <summary>
-		/// Writes the JSON to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="json"></param>
-		/// <param name="formatting"></param>
-		/// <param name="headers"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
-			=> context.WriteAsync(json?.ToString(formatting) ?? "{}", "application/json", headers, cancellationToken);
-
-		/// <summary>
-		/// Writes the JSON to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="json"></param>
-		/// <param name="headers"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, JToken json, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
-			=> context.WriteAsync(json, Formatting.None, headers, cancellationToken);
-
-		/// <summary>
-		/// Writes the JSON to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="json"></param>
-		/// <param name="formatting"></param>
-		/// <param name="eTag"></param>
-		/// <param name="lastModified"></param>
-		/// <param name="cacheControl"></param>
-		/// <param name="expires"></param>
-		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting, string eTag, long lastModified, string cacheControl, TimeSpan expires, string correlationID = null, CancellationToken cancellationToken = default)
-			=> context.WriteAsync(json?.ToString(formatting) ?? "{}", "application/json", eTag, lastModified, cacheControl, expires, correlationID, cancellationToken);
-
-		/// <summary>
-		/// Writes the JSON to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="json"></param>
-		/// <param name="formatting"></param>
-		/// <param name="correlationID"></param>
-		public static Task WriteAsync(this HttpContext context, JToken json, Formatting formatting = Formatting.None, string correlationID = null, CancellationToken cancellationToken = default)
-			=> context.WriteAsync(json, formatting, null, 0, null, default, correlationID, cancellationToken);
-
-		/// <summary>
-		/// Writes the JSON to the response body
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="json"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static Task WriteAsync(this HttpContext context, JToken json, CancellationToken cancellationToken)
-			=> context.WriteAsync(json, Formatting.None, "", cancellationToken);
 		#endregion
 
 		#region Show HTTP error as HTML
