@@ -1338,12 +1338,19 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static JArray GetStacks(this Exception exception)
 		{
-			var stacks = new JArray { $"{exception.Message} [{exception.GetType()}] {exception.StackTrace}" };
-			var inner = exception.InnerException;
-			while (inner != null)
+			var stacks = new JArray();
+			if (exception is AggregateException agg)
+				foreach (var inner in agg.Flatten().InnerExceptions)
+					stacks.Add($"{inner.Message} [{inner.GetType()}] {inner.StackTrace}");
+			else
 			{
-				stacks.Add($"{inner.Message} [{inner.GetType()}] {inner.StackTrace}");
-				inner = inner.InnerException;
+				stacks.Add($"{exception.Message} [{exception.GetType()}] {exception.StackTrace}");
+				var inner = exception.InnerException;
+				while (inner != null)
+				{
+					stacks.Add($"{inner.Message} [{inner.GetType()}] {inner.StackTrace}");
+					inner = inner.InnerException;
+				}
 			}
 			return stacks;
 		}
