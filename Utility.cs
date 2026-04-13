@@ -105,6 +105,13 @@ namespace net.vieapps.Components.Utility
 			if (exception is OperationCanceledException)
 				return (int)HttpStatusCode.BadGateway;
 
+			if (exception is SystemBusyException)
+#if NETSTANDARD2_0
+				return 429;
+#else
+				return (int)HttpStatusCode.TooManyRequests;
+#endif
+
 			return exception.GetTypeName(true).IsEndsWith("NotFound")
 				? (int)HttpStatusCode.NotFound
 				: (int)HttpStatusCode.InternalServerError;
