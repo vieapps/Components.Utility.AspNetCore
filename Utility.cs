@@ -1288,7 +1288,7 @@ namespace net.vieapps.Components.Utility
 		{
 			context.SetItem("StatusCode", statusCode);
 			context.SetItem("ContentType", "application/json; charset=utf-8");
-			context.SetItem("Body", body.ToString(Formatting.Indented));
+			context.SetItem("Body", body.AsString(Formatting.Indented));
 			if (headers != null && headers.Count > 0)
 				context.SetItem("Headers", headers);
 			context.Response.StatusCode = statusCode;
