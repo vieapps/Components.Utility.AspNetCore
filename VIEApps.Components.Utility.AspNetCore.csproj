@@ -61,9 +61,9 @@
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)' != 'true'">
-		<PackageReference Include="VIEApps.Components.Caching" Version="10.10.2604.24" />
-		<PackageReference Include="VIEApps.Components.Security" Version="10.10.2604.24" />
-		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.10.2604.24" />
+		<PackageReference Include="VIEApps.Components.Caching" Version="10.10.2605.1" />
+		<PackageReference Include="VIEApps.Components.Security" Version="10.10.2605.1" />
+		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.10.2605.1" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)' == 'true'">
