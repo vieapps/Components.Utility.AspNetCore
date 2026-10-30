@@ -571,7 +571,7 @@ namespace net.vieapps.Components.Utility
 		}
 		#endregion
 
-		#region Helpers: set headers, redirect, writes, flush, ...
+		#region Helpers: redirect, writes, flush, ...
 		/// <summary>
 		/// Redirects the response by send the redirect status code (301 or 302) to client
 		/// </summary>
@@ -680,7 +680,7 @@ namespace net.vieapps.Components.Utility
 		}
 		#endregion
 
-		#region Response headers
+		#region Helpers: set response headers
 		static Dictionary<string, string> Normalize(this Dictionary<string, string> headers, Dictionary<string, string> values, Action<Dictionary<string, string>> onCompleted = null)
 		{
 			headers = new Dictionary<string, string>(headers ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
@@ -704,7 +704,7 @@ namespace net.vieapps.Components.Utility
 			});
 		}
 
-		public static Dictionary<string, string> GetTrailers(this HttpContext context, Dictionary<string, string> headers = null)
+		static Dictionary<string, string> GetTrailers(this HttpContext context, Dictionary<string, string> headers = null)
 		{
 			headers = headers ?? new Dictionary<string, string>();
 			if (context.Items.TryGetValue("PipelineStopwatch", out var swatch) && swatch is Stopwatch stopwatch)
@@ -716,7 +716,7 @@ namespace net.vieapps.Components.Utility
 			return headers;
 		}
 
-		public static bool SetTrailers(this HttpContext context, bool declare = false)
+		static bool SetTrailers(this HttpContext context, bool declare = false)
 		{
 #if NETSTANDARD2_0
 			var isSupportsTrailers = false;
@@ -731,7 +731,7 @@ namespace net.vieapps.Components.Utility
 			return isSupportsTrailers;
 		}
 
-		public static bool AppendTrailers(this HttpContext context)
+		static bool AppendTrailers(this HttpContext context)
 		{
 #if !NETSTANDARD2_0
 			if (context.SetTrailers())
@@ -743,13 +743,7 @@ namespace net.vieapps.Components.Utility
 			return false;
 		}
 
-		/// <summary>
-		/// Sets the approriate headers of response
-		/// </summary>
-		/// <param name="context"></param>
-		/// <param name="statusCode">The HTTP status code</param>
-		/// <param name="headers">The HTTP headers</param>
-		public static void SetResponseHeaders(this HttpContext context, int statusCode, Dictionary<string, string> headers = null, bool useTrailers = true)
+		static void SetResponseHeaders(this HttpContext context, int statusCode, Dictionary<string, string> headers, bool useTrailers)
 		{
 			headers = (headers ?? new Dictionary<string, string>()).Normalize(new Dictionary<string, string>
 			{
@@ -770,6 +764,15 @@ namespace net.vieapps.Components.Utility
 			headers.ForEach(kvp => context.Response.Headers[kvp.Key] = kvp.Value);
 			context.Response.StatusCode = statusCode;
 		}
+
+		/// <summary>
+		/// Sets the approriate headers of response
+		/// </summary>
+		/// <param name="context"></param>
+		/// <param name="statusCode">The HTTP status code</param>
+		/// <param name="headers">The HTTP headers</param>
+		public static void SetResponseHeaders(this HttpContext context, int statusCode, Dictionary<string, string> headers = null)
+			=> context.SetResponseHeaders(statusCode, headers, false);
 
 		/// <summary>
 		/// Sets the approriate headers of response
@@ -865,7 +868,7 @@ namespace net.vieapps.Components.Utility
 				context.AppendCookies(cookies);
 
 			var statusCode = asPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK;
-			context.SetResponseHeaders(statusCode, headers);
+			context.SetResponseHeaders(statusCode, headers, true);
 #if !NETSTANDARD2_0
 			await context.Response.StartAsync(cancellationToken).ConfigureAwait(false);
 #endif
@@ -994,7 +997,7 @@ namespace net.vieapps.Components.Utility
 			if (asPartialContent && startBytes > 0)
 				stream.Seek(startBytes, SeekOrigin.Begin);
 
-			context.SetResponseHeaders(asPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers);
+			context.SetResponseHeaders(asPartialContent ? (int)HttpStatusCode.PartialContent : (int)HttpStatusCode.OK, headers, true);
 #if !NETSTANDARD2_0
 			await context.Response.StartAsync(cancellationToken).ConfigureAwait(false);
 #endif
@@ -1084,7 +1087,7 @@ namespace net.vieapps.Components.Utility
 		/// <returns></returns>
 		public static async Task WriteAsync(this HttpContext context, byte[] buffer, int offset, int count, Dictionary<string, string> headers, CancellationToken cancellationToken = default)
 		{
-			context.SetResponseHeaders((int)HttpStatusCode.OK, headers);
+			context.SetResponseHeaders((int)HttpStatusCode.OK, headers, true);
 			var length = count > 0 ? count : (buffer.Length - offset);
 #if NETSTANDARD2_0
 			await context.Response.Body.WriteAsync(buffer, offset, length, cancellationToken).ConfigureAwait(false);
