@@ -704,29 +704,64 @@ namespace net.vieapps.Components.Utility
 			});
 		}
 
+		public static Dictionary<string, string> GetTrailers(this HttpContext context, Dictionary<string, string> headers = null)
+		{
+			headers = headers ?? new Dictionary<string, string>();
+			if (context.Items.TryGetValue("PipelineStopwatch", out var swatch) && swatch is Stopwatch stopwatch)
+			{
+				headers["X-Execution-Times"] = stopwatch.GetElapsedTimes();
+				var serverTiming = context.Items.TryGetValue("Server-Timing", out var srvTiming) && srvTiming is string ? srvTiming as string : "";
+				headers["Server-Timing"] = serverTiming + (serverTiming != "" ? ", " : "") + $"ngxOverall;dur={stopwatch.ElapsedMilliseconds}";
+			}
+			return headers;
+		}
+
+		public static bool SetTrailers(this HttpContext context, bool declare = false)
+		{
+#if NETSTANDARD2_0
+			var isSupportsTrailers = false;
+#else
+			var isSupportsTrailers = context.Response.SupportsTrailers();
+			if (isSupportsTrailers && declare)
+			{
+				context.Response.DeclareTrailer("X-Execution-Times");
+				context.Response.DeclareTrailer("Server-Timing");
+			}
+#endif
+			return isSupportsTrailers;
+		}
+
+		public static bool AppendTrailers(this HttpContext context)
+		{
+#if !NETSTANDARD2_0
+			if (context.SetTrailers())
+			{
+				context.GetTrailers().ForEach(kvp => context.Response.AppendTrailer(kvp.Key, kvp.Value));
+				return true;
+			}
+#endif
+			return false;
+		}
+
 		/// <summary>
 		/// Sets the approriate headers of response
 		/// </summary>
 		/// <param name="context"></param>
 		/// <param name="statusCode">The HTTP status code</param>
 		/// <param name="headers">The HTTP headers</param>
-		public static void SetResponseHeaders(this HttpContext context, int statusCode, Dictionary<string, string> headers = null)
+		public static void SetResponseHeaders(this HttpContext context, int statusCode, Dictionary<string, string> headers = null, bool useTrailers = true)
 		{
 			headers = (headers ?? new Dictionary<string, string>()).Normalize(new Dictionary<string, string>
 			{
 				["Server"] = AspNetCoreUtilityService.AddServerNameIntoResponseHeader ? context.GetServerName() : null,
 				["X-Powered-By"] = AspNetCoreUtilityService.AddPoweredByIntoResponseHeader ? $"{context.GetServerName()} {Assembly.GetCallingAssembly().GetVersion(false)}" : null
-			}, header =>
-			{
-				if (context.Items.TryGetValue("PipelineStopwatch", out var swatch) && swatch is Stopwatch stopwatch)
-				{
-					header["X-Execution-Times"] = stopwatch.GetElapsedTimes();
-					var serverTiming = context.Items.TryGetValue("Server-Timing", out var srvTiming) && srvTiming is string ? srvTiming as string : "";
-					header["Server-Timing"] = serverTiming + (serverTiming != "" ? ", " : "") + $"ngxOverall;dur={stopwatch.ElapsedMilliseconds}";
-				}
 			});
+			if (!useTrailers || !context.SetTrailers(true))
+				context.GetTrailers(headers);
+
 			if (!AspNetCoreUtilityService.AddNodeIntoResponseHeader)
 				AspNetCoreUtilityService.BeRemovedNodeHeaders.ForEach(header => headers.Remove(header));
+
 			context.SetItem("StatusCode", statusCode);
 			context.SetItem("Body", "");
 			context.SetItem("Headers", headers);
@@ -798,7 +833,7 @@ namespace net.vieapps.Components.Utility
 				var requestETag = context.GetRequestETag();
 				if (!string.IsNullOrWhiteSpace(requestETag) && !eTag.Equals(requestETag))
 				{
-					context.SetResponseHeaders((int)HttpStatusCode.PreconditionFailed, new Dictionary<string, string> { ["Cache-Control"] = "private, no-cache, no-store" });
+					context.SetResponseHeaders((int)HttpStatusCode.PreconditionFailed, new Dictionary<string, string> { ["Cache-Control"] = "private, no-cache, no-store" }, false);
 					return;
 				}
 			}
@@ -835,6 +870,7 @@ namespace net.vieapps.Components.Utility
 			await context.Response.StartAsync(cancellationToken).ConfigureAwait(false);
 #endif
 			await context.Response.SendFileAsync(fileInfo.FullName, startBytes, length, cancellationToken).ConfigureAwait(false);
+			context.AppendTrailers();
 		}
 
 		/// <summary>
@@ -936,7 +972,7 @@ namespace net.vieapps.Components.Utility
 				var requestETag = context.GetRequestETag();
 				if (!string.IsNullOrWhiteSpace(requestETag) && !eTag.Equals(requestETag))
 				{
-					context.SetResponseHeaders((int)HttpStatusCode.PreconditionFailed, new Dictionary<string, string> { ["Cache-Control"] = "private, no-cache, no-store" });
+					context.SetResponseHeaders((int)HttpStatusCode.PreconditionFailed, new Dictionary<string, string> { ["Cache-Control"] = "private, no-cache, no-store" }, false);
 					return;
 				}
 			}
@@ -963,6 +999,7 @@ namespace net.vieapps.Components.Utility
 			await context.Response.StartAsync(cancellationToken).ConfigureAwait(false);
 #endif
 			await StreamCopyOperation.CopyToAsync(stream, context.Response.Body, length, AspNetCoreUtilityService.BufferSize, cancellationToken).ConfigureAwait(false);
+			context.AppendTrailers();
 		}
 
 		/// <summary>
@@ -1054,6 +1091,7 @@ namespace net.vieapps.Components.Utility
 #else
 			await context.Response.Body.WriteAsync(buffer.AsMemory(offset, length),	cancellationToken).ConfigureAwait(false);
 #endif
+			context.AppendTrailers();
 		}
 
 		/// <summary>

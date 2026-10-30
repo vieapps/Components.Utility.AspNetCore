@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net10.0;net8.0;netstandard2.0</TargetFrameworks>
+		<TargetFrameworks>net10.0;netstandard2.0</TargetFrameworks>
 		<WarningLevel>3</WarningLevel>
 		<NoWarn>1573,1591,NU1701</NoWarn>
 		<DocumentationFile>bin/$(Configuration)/$(TargetFramework)/VIEApps.Components.Utility.AspNetCore.xml</DocumentationFile>
@@ -33,7 +33,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../</PackageOutputPath>
 		<PackageTags>utility;aspnetcore;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Send files</PackageReleaseNotes>
+		<PackageReleaseNotes>XML Cryptography</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.Utility.AspNetCore</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -53,17 +53,18 @@
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-		<PackageReference Include="Microsoft.AspNetCore.Authentication" Version="2.3.9" />
-		<PackageReference Include="Microsoft.AspNetCore.Diagnostics" Version="2.3.9" />
-		<PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.9" />
-		<PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.3.9" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication" Version="2.3.13" />
+		<PackageReference Include="Microsoft.AspNetCore.Diagnostics" Version="2.3.13" />
+		<PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.13" />
+		<PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="2.3.13" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.13" />
+		<PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.13" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)' != 'true'">
-		<PackageReference Include="VIEApps.Components.Caching" Version="10.10.2605.1" />
-		<PackageReference Include="VIEApps.Components.Security" Version="10.10.2605.1" />
-		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.10.2605.1" />
+		<PackageReference Include="VIEApps.Components.Caching" Version="10.10.2610.1" />
+		<PackageReference Include="VIEApps.Components.Security" Version="10.10.2610.1" />
+		<PackageReference Include="VIEApps.Components.WebSockets" Version="10.10.2610.1" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)' == 'true'">
